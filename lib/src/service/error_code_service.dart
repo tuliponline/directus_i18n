@@ -1,19 +1,22 @@
 part of directus_i18n;
 
-/// Simple Error Code Service for managing error codes from Directus
+/// Error Code Service for managing error codes from Directus
+/// Supports structure: error(code, translations) -> error_translations(id, error_code, language_code, message) -> language(code, name)
 class ErrorCodeService {
   static final Logger _logger = Logger();
   static final Map<String, ErrorCode> _errorCodeCache = {};
   static bool _isInitialized = false;
   static String? _baseUrl;
   static String? _accessToken;
-  static String _collectionName = 'error_codes';
+  static String _collectionName = 'error';
 
   /// Initialize the Error Code Service
+  /// 
+  /// [collectionName] should be 'error' for your Directus structure
   static Future<void> init({
     required String baseUrl,
     required String accessToken,
-    String collectionName = 'error_codes',
+    String collectionName = 'error',
     bool autoLoad = true,
   }) async {
     _baseUrl = baseUrl;

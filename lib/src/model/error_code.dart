@@ -31,6 +31,7 @@ class ErrorCode {
   });
 
   /// Create ErrorCode from Directus data
+  /// Supports structure: error(code, translations) -> error_translations(id, error_code, language_code, message) -> language(code, name)
   factory ErrorCode.fromDirectus(Map<String, dynamic> data) {
     // Extract translations from error_translations collection
     final translations = <String, String>{};
@@ -38,7 +39,8 @@ class ErrorCode {
     
     if (translationList != null) {
       for (final translation in translationList) {
-        // Get language code from the relationship
+        // Get language code from the relationship with language collection
+        // Structure: error_translations.language_code -> language.code
         final languageCode = translation['language_code']?['code']?.toString();
         final message = translation['message']?.toString();
         
@@ -70,7 +72,7 @@ class ErrorCode {
 
     return ErrorCode(
       code: data['code']?.toString() ?? '',
-      message: null, // No default message in error collection
+      message: null, // No default message in error collection - use translations
       translations: translations.isNotEmpty ? translations : null,
       severity: severity,
       category: data['category']?.toString(),
