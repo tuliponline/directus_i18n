@@ -52,12 +52,12 @@ void main() {
 
     test('should initialize with config', () {
       DirectusI18nService.init(
-        baseUrl: 'https://test.com',
+        baseUrl: 'https://your-directus-instance.com',
         accessToken: 'test-token',
       );
 
       final config = DirectusI18nService.config;
-      expect(config.baseUrl, 'https://test.com');
+      expect(config.baseUrl, 'https://your-directus-instance.com');
       expect(config.accessToken, 'test-token');
     });
 
@@ -70,19 +70,19 @@ void main() {
 
     test('should update config', () {
       DirectusI18nService.init(
-        baseUrl: 'https://test.com',
+        baseUrl: 'https://your-directus-instance.com',
         accessToken: 'test-token',
       );
 
       DirectusI18nService.updateConfig(
         DirectusI18nConfig(
-          baseUrl: 'https://new-test.com',
+          baseUrl: 'https://your-directus-instance.com',
           accessToken: 'new-token',
         ),
       );
 
       final config = DirectusI18nService.config;
-      expect(config.baseUrl, 'https://new-test.com');
+      expect(config.baseUrl, 'https://your-directus-instance.com');
       expect(config.accessToken, 'new-token');
     });
   });
@@ -105,11 +105,11 @@ void main() {
   group('DirectusI18nConfig', () {
     test('should create config with required parameters', () {
       final config = DirectusI18nConfig(
-        baseUrl: 'https://test.com',
+        baseUrl: 'https://your-directus-instance.com',
         accessToken: 'test-token',
       );
 
-      expect(config.baseUrl, 'https://test.com');
+      expect(config.baseUrl, 'https://your-directus-instance.com');
       expect(config.accessToken, 'test-token');
       expect(config.collectionName, 'app_contents');
       expect(config.isProduction, true);
@@ -118,7 +118,7 @@ void main() {
 
     test('should create config with custom parameters', () {
       final config = DirectusI18nConfig(
-        baseUrl: 'https://test.com',
+        baseUrl: 'https://your-directus-instance.com',
         accessToken: 'test-token',
         collectionName: 'custom_collection',
         isProduction: false,
@@ -132,15 +132,15 @@ void main() {
 
     test('should copy with new values', () {
       final original = DirectusI18nConfig(
-        baseUrl: 'https://test.com',
+        baseUrl: 'https://your-directus-instance.com',
         accessToken: 'test-token',
       );
 
       final copied = original.copyWith(
-        baseUrl: 'https://new-test.com',
+        baseUrl: 'https://your-directus-instance.com',
       );
 
-      expect(copied.baseUrl, 'https://new-test.com');
+      expect(copied.baseUrl, 'https://your-directus-instance.com');
       expect(copied.accessToken, 'test-token');
     });
   });

@@ -41,8 +41,18 @@ class ErrorCode {
       for (final translation in translationList) {
         // Get language code from the relationship with language collection
         // Structure: error_translations.language_code -> language.code
-        final languageCode = translation['language_code']?['code']?.toString();
+        String? languageCode;
         final message = translation['message']?.toString();
+        
+        // Handle different possible structures
+        if (translation['language_code'] != null) {
+          final langCodeData = translation['language_code'];
+          if (langCodeData is Map<String, dynamic>) {
+            languageCode = langCodeData['code']?.toString();
+          } else if (langCodeData is String) {
+            languageCode = langCodeData;
+          }
+        }
         
         if (languageCode != null && message != null && message.isNotEmpty) {
           translations[languageCode] = message;
@@ -102,7 +112,7 @@ class ErrorCode {
     Map<String, String>? parameters,
     String? fallback,
   }) {
-    String messageText = message ?? fallback ?? code;
+    String messageText = message ?? fallback ?? _getDefaultFallbackMessage(languageCode);
     
     // Try to get translation for specific language
     if (languageCode != null && translations != null && translations!.containsKey(languageCode)) {
@@ -120,6 +130,19 @@ class ErrorCode {
     }
     
     return messageText;
+  }
+
+  /// Get default fallback message based on language
+  String _getDefaultFallbackMessage(String? languageCode) {
+    switch (languageCode) {
+      case 'th-TH':
+        return 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ ($code)';
+      case 'en-US':
+      case 'en':
+        return 'An unknown error occurred. ($code)';
+      default:
+        return 'An unknown error occurred. ($code)';
+    }
   }
 
   /// Get all available languages for this error code

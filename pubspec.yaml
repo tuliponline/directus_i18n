@@ -31,4 +31,5 @@ dev_dependencies:
     sdk: flutter
   mocktail: ^1.0.0
   flutter_lints: ^2.0.0
+  flutter_dotenv: ^5.1.0
 

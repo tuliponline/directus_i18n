@@ -97,7 +97,7 @@ class ErrorCodeService {
   }) {
     final errorCode = getErrorCode(code);
     if (errorCode == null) {
-      return fallback ?? code;
+      return fallback ?? _getDefaultFallbackMessage(languageCode, code);
     }
 
     return errorCode.getLocalizedMessage(
@@ -105,6 +105,19 @@ class ErrorCodeService {
       parameters: parameters,
       fallback: fallback,
     );
+  }
+
+  /// Get default fallback message based on language
+  static String _getDefaultFallbackMessage(String? languageCode, String errorCode) {
+    switch (languageCode) {
+      case 'th-TH':
+        return 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ ($errorCode)';
+      case 'en-US':
+      case 'en':
+        return 'An unknown error occurred. ($errorCode)';
+      default:
+        return 'An unknown error occurred. ($errorCode)';
+    }
   }
 
   /// Check if error code exists
