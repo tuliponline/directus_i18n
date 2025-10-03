@@ -1,0 +1,22 @@
+name: directus_i18n_example
+description: Example app demonstrating directus_i18n usage
+publish_to: none
+
+environment:
+  sdk: '>=3.0.6 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  directus_i18n:
+    path: ../
+  get_it: ^7.6.7
+  flutter_localizations:
+    sdk: flutter
+  flutter_dotenv: ^5.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+

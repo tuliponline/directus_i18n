@@ -1,0 +1,34 @@
+name: directus_i18n
+description: A reusable Flutter package for internationalization using Directus CMS as the content source. Supports dynamic content loading, type-safe keys, fallback support, and easy integration.
+version: 1.0.0
+# publish_to: none  # Uncomment this before publishing to pub.dev
+
+# Add these before publishing:
+# homepage: https://github.com/your-username/directus_i18n
+# repository: https://github.com/your-username/directus_i18n
+# issue_tracker: https://github.com/your-username/directus_i18n/issues
+# documentation: https://github.com/your-username/directus_i18n#readme
+
+environment:
+  sdk: '>=3.0.6 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # Core dependencies
+  flutter_i18n: ^0.36.3
+  dio: ^5.8.0+1
+  logger: ^2.0.2+1
+  synchronized: ^3.1.0+1
+  dotenv: ^4.2.0
+  
+  # DI - optional, can be injected
+  get_it: ^7.6.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  mocktail: ^1.0.0
+  flutter_lints: ^2.0.0
+
