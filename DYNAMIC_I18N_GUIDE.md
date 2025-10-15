@@ -26,7 +26,7 @@ void main() async {
   await DynamicI18nService.init(
     baseUrl: 'https://your-directus-instance.com',
     accessToken: 'your-access-token',
-    collectionName: 'app_contents',
+    collectionName: 'contents',
   );
   
   runApp(MyApp());
@@ -164,7 +164,7 @@ Create `.env` file:
 ```bash
 DIRECTUS_BASE_URL=https://your-directus.com
 DIRECTUS_ACCESS_TOKEN=your-token
-DIRECTUS_COLLECTION_NAME=app_contents
+DIRECTUS_COLLECTION_NAME=contents
 ```
 
 ### Custom Configuration
@@ -173,7 +173,7 @@ DIRECTUS_COLLECTION_NAME=app_contents
 await DynamicI18nService.init(
   baseUrl: 'https://your-directus.com',
   accessToken: 'your-token',
-  collectionName: 'app_contents',
+  collectionName: 'contents',
   cacheEnabled: true, // Enable/disable caching
 );
 ```

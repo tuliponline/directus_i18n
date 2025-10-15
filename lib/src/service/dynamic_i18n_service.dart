@@ -11,7 +11,7 @@ class DynamicI18nService {
   static Future<void> init({
     required String baseUrl,
     required String accessToken,
-    String collectionName = 'app_contents',
+    String collectionName = 'contents',
     bool cacheEnabled = true,
   }) async {
     if (_isInitialized) return;
@@ -44,9 +44,8 @@ class DynamicI18nService {
         '/items/$collectionName',
         queryParameters: {
           'access_token': accessToken,
-          'fields': 'id,translations.value,translations.draft_value',
-          'filter[status][_in]': 'published,draft',
-          'deep[translations][_filter][value][_nnull]': 'true',
+          'fields': 'key,translations.message',
+          'deep[translations][_filter][message][_nnull]': 'true',
           'limit': '-1',
         },
       );
@@ -55,20 +54,15 @@ class DynamicI18nService {
       _fallbackCache.clear();
 
       for (final item in response.data['data']) {
-        final String key = item['id'].toString();
+        final String key = item['key'].toString();
         final translations = item['translations'] as List?;
         
         if (translations != null && translations.isNotEmpty) {
-          final String? value = translations[0]['value'];
-          final String? draftValue = translations[0]['draft_value'];
+          final String? value = translations[0]['message'];
           
           if (value != null) {
             _keyCache[key] = value;
             _fallbackCache[key] = value;
-          }
-          
-          if (draftValue != null && draftValue.isNotEmpty) {
-            _fallbackCache[key] = draftValue;
           }
         }
       }

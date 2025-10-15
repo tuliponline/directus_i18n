@@ -10,7 +10,7 @@ class CombinedI18nService {
   static Future<void> init({
     required String baseUrl,
     required String accessToken,
-    String i18nCollectionName = 'app_contents',
+    String i18nCollectionName = 'contents',
     String errorCollectionName = 'error_codes',
     String i18nEnumName = 'AppI18nKeys',
     bool autoGenerateEnum = true,

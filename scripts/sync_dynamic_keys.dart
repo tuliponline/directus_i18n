@@ -19,7 +19,7 @@ void main() async {
   // Access the environment variables
   final baseUrl = env['DIRECTUS_BASE_URL'];
   final accessToken = env['DIRECTUS_ACCESS_TOKEN'];
-  final collectionName = env['DIRECTUS_COLLECTION_NAME'] ?? 'app_contents';
+  final collectionName = env['DIRECTUS_COLLECTION_NAME'] ?? 'contents';
 
   if (baseUrl == null || accessToken == null) {
     print(
@@ -37,35 +37,32 @@ void main() async {
     final dio = Dio();
     dio.options.baseUrl = baseUrl;
     
+    final params = <String, dynamic>{
+      'fields': 'key,translations.message',
+      'deep[translations][_filter][message][_nnull]': 'true',
+      'limit': '-1',
+    };
+    if ((accessToken ?? '').isNotEmpty) {
+      params['access_token'] = accessToken;
+    }
     final response = await dio.get(
       '/items/$collectionName',
-      queryParameters: {
-        'access_token': accessToken,
-        'fields': 'id,translations.value,translations.draft_value',
-        'filter[status][_in]': 'published,draft',
-        'deep[translations][_filter][value][_nnull]': 'true',
-        'limit': '-1',
-      },
+      queryParameters: params,
     );
 
     final keys = <String, String>{};
     final fallbacks = <String, String>{};
 
     for (final item in response.data['data']) {
-      final String key = item['id'].toString();
+      final String key = item['key'].toString();
       final translations = item['translations'] as List?;
       
       if (translations != null && translations.isNotEmpty) {
-        final String? value = translations[0]['value'];
-        final String? draftValue = translations[0]['draft_value'];
+        final String? value = translations[0]['message'];
         
         if (value != null) {
           keys[key] = value;
           fallbacks[key] = value;
-        }
-        
-        if (draftValue != null && draftValue.isNotEmpty) {
-          fallbacks[key] = draftValue;
         }
       }
     }
@@ -74,7 +71,9 @@ void main() async {
     print("");
     print("📋 Available keys:");
     keys.keys.take(10).forEach((key) {
-      print("  - $key: ${keys[key]?.substring(0, 50)}...");
+      final valueStr = keys[key] ?? '';
+      final preview = valueStr.length > 50 ? valueStr.substring(0, 50) + '...' : valueStr;
+      print("  - $key: $preview");
     });
     
     if (keys.length > 10) {

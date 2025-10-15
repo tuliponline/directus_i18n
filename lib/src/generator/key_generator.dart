@@ -22,7 +22,7 @@ class DirectusI18nKeyGenerator {
     required String baseUrl,
     required String accessToken,
     required String outputPath,
-    String collectionName = 'app_contents',
+    String collectionName = 'contents',
     String enumName = 'I18nKeys',
   }) async {
     final logger = Logger();
@@ -37,9 +37,8 @@ class DirectusI18nKeyGenerator {
         '/items/$collectionName',
         queryParameters: {
           'access_token': accessToken,
-          'fields': 'id,translations.value,translations.draft_value',
-          'filter[status][_in]': 'published,draft',
-          'deep[translations][_filter][value][_nnull]': 'true',
+          'fields': 'key,translations.message',
+          'deep[translations][_filter][message][_nnull]': 'true',
           'limit': '-1',
         },
       );
@@ -63,11 +62,11 @@ class DirectusI18nKeyGenerator {
       logger.i('Found ${data.length} translation keys');
 
       for (var item in data) {
-        final id = item['id'];
+        final id = item['key'];
         final translations = item['translations'] as List?;
         
         if (translations != null && translations.isNotEmpty) {
-          final value = translations[0]['value'];
+          final value = translations[0]['message'];
           if (value != null) {
             final sanitizedValue = _sanitizeString(value);
             buffer.writeln("  key$id('$id', defaultFallbackKey: '$sanitizedValue'),");

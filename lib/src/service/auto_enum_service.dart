@@ -11,7 +11,7 @@ class AutoEnumService {
   static Future<void> init({
     required String baseUrl,
     required String accessToken,
-    String collectionName = 'app_contents',
+    String collectionName = 'contents',
     String enumName = 'AutoI18nKeys',
     bool autoGenerate = true,
     Duration? checkInterval,
@@ -37,7 +37,7 @@ class AutoEnumService {
   static Future<void> generateEnumIfNeeded({
     required String baseUrl,
     required String accessToken,
-    String collectionName = 'app_contents',
+    String collectionName = 'contents',
     String enumName = 'AutoI18nKeys',
   }) async {
     if (_isGenerating) return;
@@ -90,8 +90,7 @@ class AutoEnumService {
         '/items/$collectionName',
         queryParameters: {
           'access_token': accessToken,
-          'fields': 'id,date_updated',
-          'filter[status][_in]': 'published,draft',
+          'fields': 'key,date_updated',
           'sort': '-date_updated',
           'limit': '1',
         },
@@ -129,7 +128,7 @@ class AutoEnumService {
   static Future<void> forceRegenerate({
     required String baseUrl,
     required String accessToken,
-    String collectionName = 'app_contents',
+    String collectionName = 'contents',
     String enumName = 'AutoI18nKeys',
   }) async {
     _logger.i('🔄 Force regenerating enum...');

@@ -52,6 +52,7 @@ void main() async {
   await HybridI18nService.init(
     baseUrl: 'https://your-directus.com',
     accessToken: 'your-token',
+    collectionName: 'contents',
     autoGenerateEnum: true,
   );
   
@@ -174,7 +175,7 @@ print('Status: $status');
 ```bash
 DIRECTUS_BASE_URL=https://your-directus.com
 DIRECTUS_ACCESS_TOKEN=your-token
-DIRECTUS_COLLECTION_NAME=app_contents
+DIRECTUS_COLLECTION_NAME=contents
 I18N_ENUM_NAME=MyAppI18nKeys
 ```
 

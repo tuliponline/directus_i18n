@@ -16,21 +16,18 @@ This guide shows how to use both I18n content and Error codes together in your F
 
 ### 1. Setup Both Collections in Directus
 
-#### I18n Content Collection (`app_contents`)
+#### I18n Content Collection (`contents`)
 ```json
 {
-  "id": "string",             // Content ID
-  "translations": "relation", // Translations relation
-  "status": "string"          // published, draft
+  "key": "string",            // Content key (e.g., "welcome")
+  "translations": "relation"  // Translations relation
 }
 ```
 
-#### Error Codes Collection (`error_codes`)
+#### Error Codes Collection (`error`)
 ```json
 {
   "code": "string",           // Error code (e.g., "NETWORK_ERROR")
-  "message": "text",          // Default error message
-  "status": "string",         // published, draft
   "translations": "relation"  // Translations relation
 }
 ```
@@ -58,7 +55,7 @@ Future<void> _initializeServices() async {
   await HybridI18nService.init(
     baseUrl: dotenv.env['DIRECTUS_BASE_URL']!,
     accessToken: dotenv.env['DIRECTUS_ACCESS_TOKEN']!,
-    collectionName: 'app_contents', // I18n content collection
+    collectionName: 'contents', // I18n content collection
     enumName: 'AppI18nKeys',
     autoGenerateEnum: true,
     enableDynamicFallback: true,
@@ -68,7 +65,7 @@ Future<void> _initializeServices() async {
   await ErrorCodeService.init(
     baseUrl: dotenv.env['DIRECTUS_BASE_URL']!,
     accessToken: dotenv.env['DIRECTUS_ACCESS_TOKEN']!,
-    collectionName: 'error_codes', // Error codes collection
+    collectionName: 'error', // Error codes collection
     autoLoad: true,
   );
 }
@@ -119,8 +116,8 @@ class MyWidget extends StatelessWidget {
 # .env
 DIRECTUS_BASE_URL=https://your-directus.com
 DIRECTUS_ACCESS_TOKEN=your-token
-DIRECTUS_COLLECTION_NAME=app_contents
-ERROR_CODES_COLLECTION_NAME=error_codes
+DIRECTUS_COLLECTION_NAME=contents
+ERROR_CODES_COLLECTION_NAME=error
 I18N_ENUM_NAME=AppI18nKeys
 ```
 
@@ -131,7 +128,7 @@ I18N_ENUM_NAME=AppI18nKeys
 await HybridI18nService.init(
   baseUrl: 'https://your-directus.com',
   accessToken: 'your-token',
-  collectionName: 'app_contents',
+  collectionName: 'contents',
   enumName: 'AppI18nKeys',
   autoGenerateEnum: true,
   enableDynamicFallback: true,
@@ -141,7 +138,7 @@ await HybridI18nService.init(
 await ErrorCodeService.init(
   baseUrl: 'https://your-directus.com',
   accessToken: 'your-token',
-  collectionName: 'error_codes',
+  collectionName: 'error',
   autoLoad: true,
 );
 ```
@@ -553,12 +550,12 @@ void main() {
 
 ```
 Directus Collections:
-├── app_contents          # I18n content
+├── contents              # I18n content
 │   ├── welcome
 │   ├── login_button
 │   ├── error_messages
 │   └── ...
-└── error_codes           # Error codes
+└── error                 # Error codes
     ├── NETWORK_ERROR
     ├── AUTH_FAILED
     ├── VALIDATION_ERROR
@@ -628,8 +625,8 @@ class AppInitializer {
 ### Patch Workflow
 
 1. **Update content in Directus**
-   - Update I18n content in `app_contents` collection
-   - Update error codes in `error_codes` collection
+   - Update I18n content in `contents` collection
+   - Update error codes in `error` collection
 
 2. **Refresh services**
    ```dart
@@ -648,10 +645,10 @@ class AppInitializer {
 ### Common Issues
 
 **Q: I18n content not loading**
-A: Check Directus connection and `app_contents` collection
+A: Check Directus connection and `contents` collection
 
 **Q: Error codes not loading**
-A: Check Directus connection and `error_codes` collection
+A: Check Directus connection and `error` collection
 
 **Q: Translations not working**
 A: Ensure translations are published in Directus

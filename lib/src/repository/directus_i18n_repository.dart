@@ -43,11 +43,10 @@ class DirectusI18nRepository {
         '/items/${config.collectionName}',
         queryParameters: {
           'access_token': config.accessToken,
-          'fields': 'id,translations.value,translations.draft_value',
-          'filter[status][_eq]': 'published',
-          'deep[translations][_filter][languages_code][code][_starts_with]':
+          'fields': 'key,translations.message',
+          'deep[translations][_filter][language_code][_starts_with]':
               locale.languageCode,
-          'deep[translations][_filter][value][_nnull]': 'true',
+          'deep[translations][_filter][message][_nnull]': 'true',
           'limit': '-1',
         },
       );
@@ -55,13 +54,9 @@ class DirectusI18nRepository {
       final translations = <String, String>{};
 
       for (final item in response.data['data']) {
-        final String key = item['id'].toString();
+        final String key = item['key'].toString();
         if (item['translations'].length > 0) {
-          final String? draftValue = item['translations'][0]['draft_value'];
-          final String? value = (!config.isProduction && draftValue?.isNotEmpty == true)
-              ? draftValue
-              : item['translations'][0]['value'];
-
+          final String? value = item['translations'][0]['message'];
           if (value != null) {
             translations[key] = value;
           }
@@ -93,9 +88,8 @@ class DirectusI18nRepository {
         '/items/terms_conditions',
         queryParameters: {
           'access_token': config.accessToken,
-          'fields': 'id,translations.value,translations.draft_value,translations.content',
-          'filter[status][_eq]': 'published',
-          'deep[translations][_filter][languages_code][code][_starts_with]':
+          'fields': 'key,translations.message,translations.content',
+          'deep[translations][_filter][language_code][_starts_with]':
               _lastUpdatedLocale.languageCode,
           'deep[translations][content]': 'true',
           'limit': '-1',
@@ -103,7 +97,7 @@ class DirectusI18nRepository {
       );
 
       return ((response.data['data'] ?? []) as List)
-          .where((element) => ((element['id'] ?? -1) as int) == 1)
+          .where((element) => ((element['key'] ?? '') as String) == 'terms')
           .first['translations'][0]['content'];
     } catch (e, stackTrace) {
       _logger.e('Error loading terms and conditions', error: e, stackTrace: stackTrace);
@@ -124,9 +118,8 @@ class DirectusI18nRepository {
         '/items/$collectionName',
         queryParameters: {
           'access_token': config.accessToken,
-          'fields': 'id,translations.value,translations.draft_value,translations.$contentField',
-          'filter[status][_eq]': 'published',
-          'deep[translations][_filter][languages_code][code][_starts_with]':
+          'fields': 'key,translations.message,translations.$contentField',
+          'deep[translations][_filter][language_code][_starts_with]':
               _lastUpdatedLocale.languageCode,
           'deep[translations][$contentField]': 'true',
           'limit': '-1',

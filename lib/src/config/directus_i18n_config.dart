@@ -8,7 +8,7 @@ class DirectusI18nConfig {
   /// Access token for Directus API
   final String accessToken;
 
-  /// Collection name in Directus (default: 'app_contents')
+  /// Collection name in Directus (default: 'contents')
   final String collectionName;
 
   /// Whether the app is in production mode
@@ -35,7 +35,7 @@ class DirectusI18nConfig {
   const DirectusI18nConfig({
     required this.baseUrl,
     required this.accessToken,
-    this.collectionName = 'app_contents',
+    this.collectionName = 'contents',
     this.isProduction = true,
     this.cacheEnabled = true,
     this.onError,

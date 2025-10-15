@@ -19,7 +19,7 @@ void main() async {
   // Access the environment variables
   final baseUrl = env['DIRECTUS_BASE_URL'];
   final accessToken = env['DIRECTUS_ACCESS_TOKEN'];
-  final collectionName = env['DIRECTUS_COLLECTION_NAME'] ?? 'app_contents';
+  final collectionName = env['DIRECTUS_COLLECTION_NAME'] ?? 'contents';
   final enumName = env['I18N_ENUM_NAME'] ?? 'AutoI18nKeys';
 
   if (baseUrl == null || accessToken == null) {
@@ -48,9 +48,8 @@ void main() async {
       '/items/$collectionName',
       queryParameters: {
         'access_token': accessToken,
-        'fields': 'id,translations.value,translations.draft_value',
-        'filter[status][_in]': 'published,draft',
-        'deep[translations][_filter][value][_nnull]': 'true',
+        'fields': 'key,translations.message',
+        'deep[translations][_filter][message][_nnull]': 'true',
         'limit': '-1',
       },
     );
@@ -64,11 +63,11 @@ void main() async {
 
     // Generate enum cases
     for (var item in data) {
-      final id = item['id'];
+      final id = item['key'];
       final translations = item['translations'] as List?;
       
       if (translations != null && translations.isNotEmpty) {
-        final value = translations[0]['value'];
+        final value = translations[0]['message'];
         if (value != null) {
           final sanitizedValue = _sanitizeString(value);
           buffer.writeln("  key$id('$id', defaultFallbackKey: '$sanitizedValue'),");

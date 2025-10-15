@@ -19,7 +19,7 @@ void main() async {
   // Access the environment variables
   final baseUrl = env['DIRECTUS_BASE_URL'];
   final accessToken = env['DIRECTUS_ACCESS_TOKEN'];
-  final i18nCollection = env['DIRECTUS_COLLECTION_NAME'] ?? 'app_contents';
+  final i18nCollection = env['DIRECTUS_COLLECTION_NAME'] ?? 'contents';
   final errorCollection = env['ERROR_CODES_COLLECTION_NAME'] ?? 'error_codes';
 
   if (baseUrl == null || accessToken == null) {
@@ -64,26 +64,26 @@ Future<void> _syncI18nContent(Dio dio, String baseUrl, String accessToken, Strin
   print("🌍 Syncing I18n content...");
   
   try {
+    final i18nParams = <String, dynamic>{
+      'fields': 'key,translations.message,translations.language_code',
+      'deep[translations][_filter][message][_nnull]': 'true',
+      'limit': '-1',
+    };
+    if ((accessToken ?? '').isNotEmpty) i18nParams['access_token'] = accessToken;
     final response = await dio.get(
       '/items/$collectionName',
-      queryParameters: {
-        'access_token': accessToken,
-        'fields': 'id,translations.value,translations.draft_value',
-        'filter[status][_eq]': 'published',
-        'deep[translations][_filter][value][_nnull]': 'true',
-        'limit': '-1',
-      },
+      queryParameters: i18nParams,
     );
 
     final i18nKeys = <String, String>{};
     final translations = <String, Map<String, String>>{};
 
     for (final item in response.data['data']) {
-      final String key = item['id'].toString();
+      final String key = item['key'].toString();
       final translationList = item['translations'] as List?;
       
       if (translationList != null && translationList.isNotEmpty) {
-        final value = translationList[0]['value'];
+        final value = translationList[0]['message'];
         if (value != null) {
           i18nKeys[key] = value;
         }
@@ -91,10 +91,11 @@ Future<void> _syncI18nContent(Dio dio, String baseUrl, String accessToken, Strin
         // Load translations
         final translationMap = <String, String>{};
         for (final translation in translationList) {
-          final languageCode = translation['languages_code']['code'];
-          final translationValue = translation['value'];
+          final languageCode = (translation['language_code'] ?? '').toString();
+          final translationValue = translation['message'];
+          if (languageCode.isEmpty) continue;
           if (translationValue != null) {
-            translationMap[languageCode] = translationValue;
+            translationMap[languageCode] = translationValue.toString();
           }
         }
         if (translationMap.isNotEmpty) {
@@ -106,7 +107,9 @@ Future<void> _syncI18nContent(Dio dio, String baseUrl, String accessToken, Strin
     print("✅ Successfully loaded ${i18nKeys.length} I18n content items");
     print("📋 Available I18n keys:");
     i18nKeys.keys.take(10).forEach((key) {
-      print("  - $key: ${i18nKeys[key]?.substring(0, 50)}...");
+      final valueStr = i18nKeys[key] ?? '';
+      final preview = valueStr.length > 50 ? valueStr.substring(0, 50) + '...' : valueStr;
+      print("  - $key: $preview");
     });
     
     if (i18nKeys.length > 10) {
@@ -128,16 +131,20 @@ Future<void> _syncErrorCodes(Dio dio, String baseUrl, String accessToken, String
   print("🚨 Syncing Error codes...");
   
   try {
+    // Use the exact public params confirmed to work in Postman (no token)
+    final errParams = <String, dynamic>{
+      'fields': 'code,translations.message,translations.language_code',
+      'deep[translations][_filter][message][_nnull]': 'true',
+      'limit': '-1',
+    };
+print(errParams); 
+   
+
     final response = await dio.get(
       '/items/$collectionName',
-      queryParameters: {
-        'access_token': accessToken,
-        'fields': 'code,message,translations.value,translations.draft_value',
-        'filter[status][_eq]': 'published',
-        'deep[translations][_filter][value][_nnull]': 'true',
-        'limit': '-1',
-      },
+      queryParameters: errParams,
     );
+    
 
     final errorCodes = <String, Map<String, dynamic>>{};
     final translations = <String, Map<String, String>>{};
@@ -147,7 +154,7 @@ Future<void> _syncErrorCodes(Dio dio, String baseUrl, String accessToken, String
       if (code.isNotEmpty) {
         errorCodes[code] = {
           'code': code,
-          'message': item['message'],
+          'translations': item['translations'],
         };
 
         // Load translations
@@ -155,10 +162,11 @@ Future<void> _syncErrorCodes(Dio dio, String baseUrl, String accessToken, String
         if (translationList != null && translationList.isNotEmpty) {
           final translationMap = <String, String>{};
           for (final translation in translationList) {
-            final languageCode = translation['languages_code']['code'];
-            final value = translation['value'];
+            final languageCode = (translation['language_code'] ?? '').toString();
+            final value = translation['message'];
+            if (languageCode.isEmpty) continue;
             if (value != null) {
-              translationMap[languageCode] = value;
+              translationMap[languageCode] = value.toString();
             }
           }
           if (translationMap.isNotEmpty) {
@@ -172,7 +180,7 @@ Future<void> _syncErrorCodes(Dio dio, String baseUrl, String accessToken, String
     print("📋 Available error codes:");
     errorCodes.keys.take(10).forEach((code) {
       final errorCode = errorCodes[code]!;
-      print("  - $code: ${errorCode['message']?.substring(0, 50)}...");
+      print("  - $code: ${errorCode['translations']}");
     });
     
     if (errorCodes.length > 10) {
