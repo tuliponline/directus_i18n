@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.6] - 2025-01-XX
+
+### Added
+- **Multi-collection support**: Added `DirectusCollectionConfig` class to support multiple Directus collections with prefixes
+- Added `collections` parameter to `HybridI18nService.init()` for loading from multiple collections
+- Added `collections` parameter to `AutoEnumService.init()` for generating enums from multiple collections
+- Added `collections` parameter to `RuntimeEnumGenerator.generateAndStore()` for cross-collection enum generation
+- Added `collections` parameter to `CombinedI18nService.init()` for unified multi-collection initialization
+- Enhanced collection-based key management with prefix support to prevent key conflicts
+
+### Changed
+- Updated `HybridI18nService._loadDynamicKeys()` to merge translations from multiple collections with prefix handling
+- Updated `AutoEnumService._shouldGenerateEnum()` to check update times across all collections
+- Updated `RuntimeEnumGenerator.generateAndStore()` to generate enums from multiple collections
+- Maintained backward compatibility: existing `collectionName` parameter still works as before
+- Updated documentation and examples for multi-collection usage
+
+### Fixed
+- Improved error handling when loading from multiple collections (continues loading other collections if one fails)
+
 ## [1.0.5] - 2025-01-XX
 
 ### Fixed

@@ -71,6 +71,31 @@ Future<void> _initializeServices() async {
 }
 ```
 
+### 2.1 Single Collection (แบบเดิม)
+```dart
+await HybridI18nService.init(
+  baseUrl: dotenv.env['DIRECTUS_BASE_URL']!,
+  accessToken: dotenv.env['DIRECTUS_ACCESS_TOKEN']!,
+  collectionName: 'contents', // ใช้คอลเล็กชันเดียว
+  autoGenerateEnum: true,
+);
+```
+
+### 2.2 Multiple Collections (แบบใหม่)
+รองรับหลายคอลเล็กชันและ prefix กัน key ชนกัน
+```dart
+await HybridI18nService.init(
+  baseUrl: dotenv.env['DIRECTUS_BASE_URL']!,
+  accessToken: dotenv.env['DIRECTUS_ACCESS_TOKEN']!,
+  collections: const [
+    DirectusCollectionConfig(name: 'contents', prefix: ''),
+    DirectusCollectionConfig(name: 'homepage', prefix: 'homepage.'), // key = homepage.hero_title
+  ],
+  autoGenerateEnum: true, // รวมคีย์ทุกคอลเล็กชันก่อน generate enum
+  enableDynamicFallback: true,
+);
+```
+
 ### 3. Use Both in Your App
 
 ```dart

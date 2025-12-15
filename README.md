@@ -64,6 +64,22 @@ Text('welcome'.tr())
 Text(HybridI18nService.translate('welcome_user', params: {'name': 'John'}))
 ```
 
+### 🗂️ Multiple Collections (optional)
+รองรับหลาย collection ใน Directus ภายใต้การ init ครั้งเดียว (เช่นแยก `contents`, `homepage`) พร้อม prefix กันชน key
+
+```dart
+await HybridI18nService.init(
+  baseUrl: dotenv.get(MonsterEnv.directus),
+  accessToken: dotenv.get(MonsterEnv.directusToken),
+  // fallback ใช้ collectionName เดิม ถ้าไม่ต้องการหลาย collection
+  collections: const [
+    DirectusCollectionConfig(name: 'contents', prefix: ''),
+    DirectusCollectionConfig(name: 'homepage', prefix: 'homepage.'), // key = homepage.hero_title
+  ],
+  autoGenerateEnum: true, // จะ merge keys ทั้งหมดก่อน generate enum
+);
+```
+
 ## 📚 Documentation
 
 - [Quick Start Guide](QUICK_START.md) - เริ่มต้นใช้งานใน 5 นาที

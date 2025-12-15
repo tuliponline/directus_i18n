@@ -69,3 +69,18 @@ class DirectusI18nConfig {
   }
 }
 
+/// Configuration for fetching translations from multiple Directus collections.
+/// Use prefix to prevent key collisions across collections.
+class DirectusCollectionConfig {
+  final String name;
+  final String prefix;
+
+  const DirectusCollectionConfig({
+    required this.name,
+    this.prefix = '',
+  });
+
+  /// Apply prefix to an incoming key (no-op if prefix is empty).
+  String applyPrefix(String key) => prefix.isEmpty ? key : '$prefix$key';
+}
+

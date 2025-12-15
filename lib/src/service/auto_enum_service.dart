@@ -12,12 +12,16 @@ class AutoEnumService {
     required String baseUrl,
     required String accessToken,
     String collectionName = 'contents',
+    List<DirectusCollectionConfig>? collections,
     String enumName = 'AutoI18nKeys',
     bool autoGenerate = true,
     Duration? checkInterval,
   }) async {
     if (_isInitialized) return;
     
+    final normalizedCollections =
+        _normalizeCollections(collections, collectionName);
+
     _logger.i('🚀 Initializing AutoEnumService...');
     
     if (autoGenerate) {
@@ -25,6 +29,7 @@ class AutoEnumService {
         baseUrl: baseUrl,
         accessToken: accessToken,
         collectionName: collectionName,
+        collections: normalizedCollections,
         enumName: enumName,
       );
     }
@@ -38,15 +43,22 @@ class AutoEnumService {
     required String baseUrl,
     required String accessToken,
     String collectionName = 'contents',
+    List<DirectusCollectionConfig>? collections,
     String enumName = 'AutoI18nKeys',
   }) async {
     if (_isGenerating) return;
     
     try {
       _isGenerating = true;
+      final normalizedCollections =
+          _normalizeCollections(collections, collectionName);
       
       // Check if we need to generate/update enum
-      final shouldGenerate = await _shouldGenerateEnum(baseUrl, accessToken, collectionName);
+      final shouldGenerate = await _shouldGenerateEnum(
+        baseUrl,
+        accessToken,
+        normalizedCollections,
+      );
       
       if (shouldGenerate) {
         _logger.i('🔄 Generating updated enum...');
@@ -54,6 +66,7 @@ class AutoEnumService {
           baseUrl: baseUrl,
           accessToken: accessToken,
           collectionName: collectionName,
+          collections: normalizedCollections,
           enumName: enumName,
         );
         
@@ -75,7 +88,7 @@ class AutoEnumService {
   static Future<bool> _shouldGenerateEnum(
     String baseUrl,
     String accessToken,
-    String collectionName,
+    List<DirectusCollectionConfig> collections,
   ) async {
     // If no generated enum exists, generate it
     if (!RuntimeEnumGenerator.hasGeneratedEnum()) {
@@ -84,26 +97,38 @@ class AutoEnumService {
     }
     
     // Check if Directus has newer content
+    final dio = Dio(BaseOptions(baseUrl: baseUrl));
     try {
-      final dio = Dio(BaseOptions(baseUrl: baseUrl));
-      final response = await dio.get(
-        '/items/$collectionName',
-        queryParameters: {
-          'access_token': accessToken,
-          'fields': 'key,date_updated',
-          'sort': '-date_updated',
-          'limit': '1',
-        },
-      );
-      
-      if (response.data['data'].isNotEmpty) {
-        final lastUpdate = DateTime.parse(response.data['data'][0]['date_updated']);
-        final enumModTime = RuntimeEnumGenerator.getGeneratedEnumModificationTime();
-        
-        if (enumModTime == null || lastUpdate.isAfter(enumModTime)) {
-          _logger.i('Directus has newer content, will regenerate enum');
-          return true;
+      DateTime? latestUpdate;
+
+      for (final collection in collections) {
+        try {
+          final response = await dio.get(
+            '/items/${collection.name}',
+            queryParameters: {
+              'access_token': accessToken,
+              'fields': 'key,date_updated',
+              'sort': '-date_updated',
+              'limit': '1',
+            },
+          );
+
+          if (response.data['data'].isNotEmpty) {
+            final lastUpdate = DateTime.parse(response.data['data'][0]['date_updated']);
+            if (latestUpdate == null || lastUpdate.isAfter(latestUpdate)) {
+              latestUpdate = lastUpdate;
+            }
+          }
+        } catch (e) {
+          _logger.w('Could not check updates for collection ${collection.name}: $e');
         }
+      }
+
+      final enumModTime = RuntimeEnumGenerator.getGeneratedEnumModificationTime();
+
+      if (latestUpdate != null && (enumModTime == null || latestUpdate.isAfter(enumModTime))) {
+        _logger.i('Directus has newer content, will regenerate enum');
+        return true;
       }
     } catch (e) {
       _logger.w('Could not check for updates: $e');
@@ -129,14 +154,18 @@ class AutoEnumService {
     required String baseUrl,
     required String accessToken,
     String collectionName = 'contents',
+    List<DirectusCollectionConfig>? collections,
     String enumName = 'AutoI18nKeys',
   }) async {
     _logger.i('🔄 Force regenerating enum...');
-    
+    final normalizedCollections =
+        _normalizeCollections(collections, collectionName);
+
     await RuntimeEnumGenerator.generateAndStore(
       baseUrl: baseUrl,
       accessToken: accessToken,
       collectionName: collectionName,
+      collections: normalizedCollections,
       enumName: enumName,
     );
     
@@ -171,5 +200,13 @@ class AutoEnumService {
     await RuntimeEnumGenerator.deleteGeneratedEnum();
     _isInitialized = false;
     _logger.i('AutoEnumService cleaned up');
+  }
+
+  static List<DirectusCollectionConfig> _normalizeCollections(
+    List<DirectusCollectionConfig>? collections,
+    String fallbackCollectionName,
+  ) {
+    if (collections != null && collections.isNotEmpty) return collections;
+    return [DirectusCollectionConfig(name: fallbackCollectionName)];
   }
 }

@@ -12,10 +12,13 @@ class RuntimeEnumGenerator {
     required String baseUrl,
     required String accessToken,
     String collectionName = 'contents',
+    List<DirectusCollectionConfig>? collections,
     String enumName = 'RuntimeI18nKeys',
   }) async {
     try {
       _logger.i('🔄 Generating runtime enum from Directus...');
+      final normalizedCollections =
+          _normalizeCollections(collections, collectionName);
       
       // Create generated directory if it doesn't exist
       final generatedDir = Directory(_generatedDir);
@@ -23,27 +26,41 @@ class RuntimeEnumGenerator {
         await generatedDir.create(recursive: true);
       }
       
-      // Fetch data from Directus
       final dio = Dio(BaseOptions(baseUrl: baseUrl));
-      final response = await dio.get(
-        '/items/$collectionName',
-        queryParameters: {
-          'access_token': accessToken,
-          'fields': 'key,translations.message',
-          'deep[translations][_filter][message][_nnull]': 'true',
-          'limit': '-1',
-        },
-      );
-      
+
+      // Fetch data from Directus (multiple collections)
+      final allItems = <Map<String, dynamic>>[];
+      for (final collection in normalizedCollections) {
+        try {
+          final response = await dio.get(
+            '/items/${collection.name}',
+            queryParameters: {
+              'access_token': accessToken,
+              'fields': 'key,translations.message',
+              'deep[translations][_filter][message][_nnull]': 'true',
+              'limit': '-1',
+            },
+          );
+          final data = (response.data['data'] ?? []) as List;
+          for (final item in data) {
+            allItems.add({
+              'key': collection.applyPrefix(item['key'].toString()),
+              'translations': item['translations'],
+            });
+          }
+        } catch (e) {
+          _logger.w('Failed to fetch collection ${collection.name}: $e');
+        }
+      }
+
       // Generate enum content
       final buffer = StringBuffer();
       _generateEnumHeader(buffer, enumName);
       
-      final data = response.data['data'] as List;
-      _logger.i('Found ${data.length} translation keys');
+      _logger.i('Found ${allItems.length} translation keys across ${normalizedCollections.length} collection(s)');
       
       // Generate enum cases
-      for (var item in data) {
+      for (var item in allItems) {
         final id = item['key'];
         final translations = item['translations'] as List?;
         
@@ -63,7 +80,7 @@ class RuntimeEnumGenerator {
       await outputFile.writeAsString(buffer.toString());
       
       _logger.i('✅ Runtime enum generated at $_generatedDir/$_enumFileName');
-      _logger.i('Total keys: ${data.length}');
+      _logger.i('Total keys: ${allItems.length}');
       
     } catch (e, stackTrace) {
       _logger.e('❌ Failed to generate runtime enum', error: e, stackTrace: stackTrace);
@@ -163,5 +180,13 @@ class RuntimeEnumGenerator {
       return file.lastModifiedSync();
     }
     return null;
+  }
+
+  static List<DirectusCollectionConfig> _normalizeCollections(
+    List<DirectusCollectionConfig>? collections,
+    String fallbackCollectionName,
+  ) {
+    if (collections != null && collections.isNotEmpty) return collections;
+    return [DirectusCollectionConfig(name: fallbackCollectionName)];
   }
 }

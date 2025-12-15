@@ -7,12 +7,14 @@ class HybridI18nService {
   static bool _isInitialized = false;
   // Cache structure: Map<i18nKey, Map<languageCode, message>>
   static final Map<String, Map<String, String>> _dynamicCache = {};
+  static List<DirectusCollectionConfig> _collections = const [];
   
   /// Initialize hybrid i18n service
   static Future<void> init({
     required String baseUrl,
     required String accessToken,
     String collectionName = 'contents',
+    List<DirectusCollectionConfig>? collections,
     String enumName = 'HybridI18nKeys',
     bool autoGenerateEnum = true,
     bool enableDynamicFallback = true,
@@ -21,19 +23,22 @@ class HybridI18nService {
     
     _logger.i('🚀 Initializing HybridI18nService...');
     
+    _collections = _normalizeCollections(collections, collectionName);
+    
     // Initialize auto enum service
     if (autoGenerateEnum) {
       await AutoEnumService.init(
         baseUrl: baseUrl,
         accessToken: accessToken,
         collectionName: collectionName,
+        collections: _collections,
         enumName: enumName,
       );
     }
     
     // Load dynamic keys for fallback
     if (enableDynamicFallback) {
-      await _loadDynamicKeys(baseUrl, accessToken, collectionName);
+      await _loadDynamicKeys(baseUrl, accessToken, _collections);
     }
     
     _isInitialized = true;
@@ -44,66 +49,71 @@ class HybridI18nService {
   static Future<void> _loadDynamicKeys(
     String baseUrl,
     String accessToken,
-    String collectionName,
+    List<DirectusCollectionConfig> collections,
   ) async {
-    try {
-      final dio = Dio(BaseOptions(baseUrl: baseUrl));
-      final response = await dio.get(
-        '/items/$collectionName',
-        queryParameters: {
-          'access_token': accessToken,
-          'fields': 'key,translations.language_code,translations.message',
-          'deep[translations][_filter][message][_nnull]': 'true',
-          'limit': '-1',
-        },
-      );
-      
-      _dynamicCache.clear();
-      
-      final data = response.data['data'] as List?;
-      if (data == null) {
-        _logger.w('No data returned from Directus');
-        return;
-      }
-      
-      for (final item in data) {
-        final String key = item['key'].toString();
-        final translations = item['translations'] as List?;
+    _dynamicCache.clear();
+    final dio = Dio(BaseOptions(baseUrl: baseUrl));
+    var totalKeys = 0;
+
+    for (final collection in collections) {
+      try {
+        final response = await dio.get(
+          '/items/${collection.name}',
+          queryParameters: {
+            'access_token': accessToken,
+            'fields': 'key,translations.language_code,translations.message',
+            'deep[translations][_filter][message][_nnull]': 'true',
+            'limit': '-1',
+          },
+        );
         
-        if (translations != null && translations.isNotEmpty) {
-          // Store all language translations for this key
-          final keyTranslations = <String, String>{};
+        final data = response.data['data'] as List?;
+        if (data == null) {
+          _logger.w('No data returned from Directus for collection ${collection.name}');
+          continue;
+        }
+        
+        for (final item in data) {
+          final String rawKey = item['key'].toString();
+          final String key = collection.applyPrefix(rawKey);
+          final translations = item['translations'] as List?;
           
-          for (final translation in translations) {
-            // Get language code - handle different possible structures
-            String? languageCode;
-            final langCodeData = translation['language_code'];
+          if (translations != null && translations.isNotEmpty) {
+            // Store all language translations for this key
+            final keyTranslations = <String, String>{};
             
-            if (langCodeData is Map<String, dynamic>) {
-              // If language_code is a relationship object, get the code
-              languageCode = langCodeData['code']?.toString();
-            } else if (langCodeData is String) {
-              // If language_code is directly a string
-              languageCode = langCodeData;
+            for (final translation in translations) {
+              // Get language code - handle different possible structures
+              String? languageCode;
+              final langCodeData = translation['language_code'];
+              
+              if (langCodeData is Map<String, dynamic>) {
+                // If language_code is a relationship object, get the code
+                languageCode = langCodeData['code']?.toString();
+              } else if (langCodeData is String) {
+                // If language_code is directly a string
+                languageCode = langCodeData;
+              }
+              
+              final String? message = translation['message']?.toString();
+              
+              if (languageCode != null && message != null && message.isNotEmpty) {
+                keyTranslations[languageCode] = message;
+              }
             }
             
-            final String? message = translation['message']?.toString();
-            
-            if (languageCode != null && message != null && message.isNotEmpty) {
-              keyTranslations[languageCode] = message;
+            if (keyTranslations.isNotEmpty) {
+              _dynamicCache[key] = keyTranslations;
+              totalKeys++;
             }
-          }
-          
-          if (keyTranslations.isNotEmpty) {
-            _dynamicCache[key] = keyTranslations;
           }
         }
+      } catch (e) {
+        _logger.e('Failed to load dynamic keys for collection ${collection.name}: $e');
       }
-      
-      _logger.d('Loaded ${_dynamicCache.length} dynamic keys with multiple languages');
-    } catch (e) {
-      _logger.e('Failed to load dynamic keys: $e');
     }
+
+    _logger.d('Loaded $totalKeys dynamic keys from ${collections.length} collection(s)');
   }
   
   /// Translate using hybrid approach (enum first, then dynamic)
@@ -237,18 +247,22 @@ class HybridI18nService {
     // Get config from DirectusI18nService if available
     try {
       final config = DirectusI18nService.config;
+      final collections = _collections.isNotEmpty
+          ? _collections
+          : _normalizeCollections(null, config.collectionName);
       // Force regenerate enum
       await AutoEnumService.forceRegenerate(
         baseUrl: config.baseUrl,
         accessToken: config.accessToken,
         collectionName: config.collectionName,
+        collections: collections,
       );
       
       // Refresh dynamic cache
       await _loadDynamicKeys(
         config.baseUrl,
         config.accessToken,
-        config.collectionName,
+        collections,
       );
     } catch (e) {
       _logger.w('DirectusI18nService not initialized, skipping enum regeneration');
@@ -265,8 +279,10 @@ class HybridI18nService {
     required String baseUrl,
     required String accessToken,
     required String collectionName,
+    List<DirectusCollectionConfig>? collections,
   }) async {
-    await _loadDynamicKeys(baseUrl, accessToken, collectionName);
+    final normalized = _normalizeCollections(collections, collectionName);
+    await _loadDynamicKeys(baseUrl, accessToken, normalized);
   }
   
   /// Get service status
@@ -276,6 +292,15 @@ class HybridI18nService {
       'hasGeneratedEnum': AutoEnumService.hasGeneratedEnum(),
       'dynamicKeysCount': _dynamicCache.length,
       'enumInfo': AutoEnumService.getEnumInfo(),
+      'collections': _collections.map((c) => {'name': c.name, 'prefix': c.prefix}).toList(),
     };
+  }
+
+  static List<DirectusCollectionConfig> _normalizeCollections(
+    List<DirectusCollectionConfig>? collections,
+    String fallbackCollectionName,
+  ) {
+    if (collections != null && collections.isNotEmpty) return collections;
+    return [DirectusCollectionConfig(name: fallbackCollectionName)];
   }
 }
