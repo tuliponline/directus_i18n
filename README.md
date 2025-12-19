@@ -13,6 +13,15 @@ A powerful Flutter package for internationalization using Directus CMS as the co
 - 🧪 **Fully Testable** - Mock support for unit and widget tests
 - 🔧 **Easy Migration** - Simple migration from existing i18n solutions
 
+## 📚 Documentation
+
+- **[คู่มือการใช้งานแบบละเอียด (Complete Usage Guide)](./COMPLETE_USAGE_GUIDE.md)** - คู่มือฉบับสมบูรณ์สำหรับการใช้งาน
+- [Directus Setup Guide](./DIRECTUS_SETUP_GUIDE.md) - วิธีตั้งค่า Directus
+- [New Structure Usage](./NEW_STRUCTURE_USAGE.md) - การใช้งานโครงสร้างใหม่
+- [Project Setup Guide](./PROJECT_SETUP_GUIDE.md) - วิธี setup ใน project
+- [Testing Guide](./TESTING_GUIDE.md) - คู่มือการทดสอบ
+- [Monster App Integration](./MONSTER_APP_INTEGRATION.md) - Integration guide สำหรับ Monster App
+
 ## 🚀 Quick Start
 
 ### 1. Setup New Project
