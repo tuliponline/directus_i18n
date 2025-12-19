@@ -90,14 +90,16 @@ class DirectusI18nRepository {
       );
 
       final translations = <String, String>{};
+      final data = (response.data?['data'] ?? []) as List<dynamic>;
 
-      for (final item in response.data['data'] ?? []) {
-        final String key = item['key']?.toString() ?? '';
+      for (final item in data) {
+        final itemMap = item as Map<String, dynamic>;
+        final String key = itemMap['key']?.toString() ?? '';
         if (key.isEmpty) continue;
 
         // Get translation value from new structure
         // translations.value(en-US) or translations.value(th-TH)
-        final translationsObj = item['translations'];
+        final translationsObj = itemMap['translations'];
         String? value;
         
         if (translationsObj is Map<String, dynamic>) {
@@ -139,8 +141,51 @@ class DirectusI18nRepository {
   }
 
   /// Get terms and conditions content
+  /// 
+  /// Supports both old structure (translations.message) and new structure (translations.value(en-US))
   Future<String> getTermsConditions() async {
     try {
+      final localeString = _lastUpdatedLocale.toString().replaceAll('_', '-');
+      
+      // Try new structure first (translations.value(en-US))
+      try {
+        final response = await _httpClient.get(
+          '/items/terms_conditions',
+          queryParameters: {
+            'access_token': config.accessToken,
+            'fields': 'key,translations.value($localeString),translations.content,status',
+            'filter[status][_eq]': 'published',
+            'limit': '-1',
+          },
+        );
+
+        final data = (response.data['data'] ?? []) as List<dynamic>;
+        final matchingItems = data.where((element) => ((element['key'] ?? '') as String) == 'terms');
+        if (matchingItems.isEmpty) {
+          throw Exception('Terms item not found');
+        }
+        final item = matchingItems.first as Map<String, dynamic>;
+        
+        final translations = item['translations'] as Map<String, dynamic>?;
+        if (translations != null) {
+          // Try new structure: translations.value(en-US)
+          final value = translations['value($localeString)']?.toString() ?? 
+                       translations['value(en-US)']?.toString();
+          if (value != null && value.isNotEmpty) {
+            return value;
+          }
+          
+          // Try content field
+          final content = translations['content']?.toString();
+          if (content != null && content.isNotEmpty) {
+            return content;
+          }
+        }
+      } catch (e) {
+        _logger.d('New structure failed, trying old structure: $e');
+      }
+      
+      // Fallback to old structure (translations.message)
       final response = await _httpClient.get(
         '/items/terms_conditions',
         queryParameters: {
@@ -153,9 +198,10 @@ class DirectusI18nRepository {
         },
       );
 
-      return ((response.data['data'] ?? []) as List)
-          .where((element) => ((element['key'] ?? '') as String) == 'terms')
-          .first['translations'][0]['content'];
+      final oldData = (response.data?['data'] ?? []) as List<dynamic>;
+      final oldItem = oldData.where((element) => ((element as Map<String, dynamic>)['key']?.toString() ?? '') == 'terms').first as Map<String, dynamic>;
+      final oldTranslations = oldItem['translations'] as List<dynamic>;
+      return (oldTranslations[0] as Map<String, dynamic>)['content'] as String;
     } catch (e, stackTrace) {
       _logger.e('Error loading terms and conditions', error: e, stackTrace: stackTrace);
       config.onError?.call(e, stackTrace);
@@ -166,11 +212,56 @@ class DirectusI18nRepository {
   /// Get content from a specific Directus collection
   /// 
   /// This is a generic method for fetching content from any collection
+  /// Supports both old structure (translations.message) and new structure (translations.value(en-US))
   Future<List<String>> getCollectionContent({
     required String collectionName,
     String contentField = 'content',
   }) async {
     try {
+      final localeString = _lastUpdatedLocale.toString().replaceAll('_', '-');
+      
+      // Try new structure first (translations.value(en-US))
+      try {
+        final response = await _httpClient.get(
+          '/items/$collectionName',
+          queryParameters: {
+            'access_token': config.accessToken,
+            'fields': 'key,translations.value($localeString),translations.$contentField,status',
+            'filter[status][_eq]': 'published',
+            'limit': '-1',
+          },
+        );
+
+        final data = (response.data['data'] ?? []) as List<dynamic>;
+        final result = <String>[];
+        
+        for (final item in data) {
+          final itemMap = item as Map<String, dynamic>;
+          final translations = itemMap['translations'] as Map<String, dynamic>?;
+          if (translations != null) {
+            // Try new structure: translations.value(en-US)
+            String? value = translations['value($localeString)']?.toString() ?? 
+                           translations['value(en-US)']?.toString();
+            
+            // Fallback to contentField
+            if (value == null || value.isEmpty) {
+              value = translations[contentField]?.toString();
+            }
+            
+            if (value != null && value.isNotEmpty) {
+              result.add(value);
+            }
+          }
+        }
+        
+        if (result.isNotEmpty) {
+          return result;
+        }
+      } catch (e) {
+        _logger.d('New structure failed, trying old structure: $e');
+      }
+      
+      // Fallback to old structure (translations.message)
       final response = await _httpClient.get(
         '/items/$collectionName',
         queryParameters: {
@@ -183,11 +274,16 @@ class DirectusI18nRepository {
         },
       );
 
-      final result = ((response.data['data'] ?? []) as List)
-          .map((e) => e['translations'][0][contentField] as String)
+      final oldData = (response.data?['data'] ?? []) as List<dynamic>;
+      final oldResult = oldData
+          .map((e) {
+            final item = e as Map<String, dynamic>;
+            final translations = item['translations'] as List<dynamic>;
+            return (translations[0] as Map<String, dynamic>)[contentField] as String;
+          })
           .toList();
       
-      return List<String>.from(result);
+      return List<String>.from(oldResult);
     } catch (e, stackTrace) {
       _logger.e('Error loading collection content', error: e, stackTrace: stackTrace);
       config.onError?.call(e, stackTrace);
