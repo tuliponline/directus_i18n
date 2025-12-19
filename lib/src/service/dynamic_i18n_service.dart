@@ -48,12 +48,12 @@ class DynamicI18nService {
       // Determine locale for translation field
       final targetLocale = locale ?? const Locale('en', 'US');
       final localeString = targetLocale.toString().replaceAll('_', '-');
-      final translationField = 'translations.value($localeString)';
       
       // Build query for new app_content structure
+      // Use translations.* to get the full translations array
       final queryParams = <String, dynamic>{
         'access_token': accessToken,
-        'fields': 'key,$translationField,translations.value(en-US),translations.value(th-TH),status',
+        'fields': 'key,translations.*,status',
         'filter[status][_eq]': 'published',
         'limit': '-1',
       };
@@ -61,7 +61,7 @@ class DynamicI18nService {
       // Filter by page prefix if provided
       if (pagePrefix != null && pagePrefix.isNotEmpty) {
         // Get page ID from app_page collection
-        final pageResponse = await dio.get(
+        final pageResponse = await dio.get<Map<String, dynamic>>(
           '/items/app_page',
           queryParameters: {
             'access_token': accessToken,
@@ -72,9 +72,9 @@ class DynamicI18nService {
           },
         );
 
-        if (pageResponse.data['data'] != null && 
-            (pageResponse.data['data'] as List).isNotEmpty) {
-          final pageId = pageResponse.data['data'][0]['id'];
+        final pageData = (pageResponse.data?['data'] ?? []) as List<dynamic>;
+        if (pageData.isNotEmpty) {
+          final pageId = (pageData[0] as Map<String, dynamic>)['id'];
           queryParams['filter[page][_eq]'] = pageId;
         } else {
           _logger.w('Page prefix "$pagePrefix" not found in app_page');
@@ -82,7 +82,7 @@ class DynamicI18nService {
         }
       }
 
-      final response = await dio.get(
+      final response = await dio.get<Map<String, dynamic>>(
         '/items/$collectionName',
         queryParameters: queryParams,
       );
@@ -90,40 +90,101 @@ class DynamicI18nService {
       _keyCache.clear();
       _fallbackCache.clear();
 
-      for (final item in response.data['data'] ?? []) {
+      final data = (response.data?['data'] ?? []) as List<dynamic>;
+      for (final item in data) {
         final String key = item['key']?.toString() ?? '';
         if (key.isEmpty) continue;
         
-        final translations = item['translations'] as Map<String, dynamic>?;
+        final translationsObj = item['translations'];
+        String? value;
         
-        if (translations != null && translations.isNotEmpty) {
+        if (translationsObj is List) {
+          // New structure: translations array with languages_code and value
           // Try to get translation for target locale first
-          String? value = translations['value($localeString)']?.toString();
-          
-          // Fallback to en-US if target locale not found
-          if (value == null || value.isEmpty) {
-            value = translations['value(en-US)']?.toString();
-          }
-          
-          // Fallback to th-TH if still not found
-          if (value == null || value.isEmpty) {
-            value = translations['value(th-TH)']?.toString();
-          }
-          
-          // Fallback to any available translation
-          if (value == null || value.isEmpty) {
-            for (final entry in translations.entries) {
-              if (entry.key.startsWith('value(') && entry.value != null) {
-                value = entry.value.toString();
+          for (final trans in translationsObj) {
+            if (trans is Map<String, dynamic>) {
+              final langCode = trans['languages_code']?.toString();
+              final transValue = trans['value']?.toString();
+              
+              if (langCode == localeString && transValue != null && transValue.isNotEmpty) {
+                value = transValue;
                 break;
               }
             }
           }
           
-          if (value != null && value.isNotEmpty) {
-            _keyCache[key] = value;
-            _fallbackCache[key] = value;
+          // Fallback to en-US if target locale not found
+          if (value == null || value.isEmpty) {
+            for (final trans in translationsObj) {
+              if (trans is Map<String, dynamic>) {
+                final langCode = trans['languages_code']?.toString();
+                final transValue = trans['value']?.toString();
+                if (langCode == 'en-US' && transValue != null && transValue.isNotEmpty) {
+                  value = transValue;
+                  break;
+                }
+              }
+            }
           }
+          
+          // Fallback to th-TH if still not found
+          if (value == null || value.isEmpty) {
+            for (final trans in translationsObj) {
+              if (trans is Map<String, dynamic>) {
+                final langCode = trans['languages_code']?.toString();
+                final transValue = trans['value']?.toString();
+                if (langCode == 'th-TH' && transValue != null && transValue.isNotEmpty) {
+                  value = transValue;
+                  break;
+                }
+              }
+            }
+          }
+          
+          // Fallback to any available translation
+          if (value == null || value.isEmpty) {
+            for (final trans in translationsObj) {
+              if (trans is Map<String, dynamic>) {
+                final transValue = trans['value']?.toString();
+                if (transValue != null && transValue.isNotEmpty) {
+                  value = transValue;
+                  break;
+                }
+              }
+            }
+          }
+        } else if (translationsObj is Map<String, dynamic>) {
+          // Fallback: Support old Map structure (translations.value(en-US))
+          final translations = translationsObj;
+          if (translations.isNotEmpty) {
+            // Try to get translation for target locale first
+            value = translations['value($localeString)']?.toString();
+            
+            // Fallback to en-US if target locale not found
+            if (value == null || value.isEmpty) {
+              value = translations['value(en-US)']?.toString();
+            }
+            
+            // Fallback to th-TH if still not found
+            if (value == null || value.isEmpty) {
+              value = translations['value(th-TH)']?.toString();
+            }
+            
+            // Fallback to any available translation
+            if (value == null || value.isEmpty) {
+              for (final entry in translations.entries) {
+                if (entry.key.startsWith('value(') && entry.value != null) {
+                  value = entry.value.toString();
+                  break;
+                }
+              }
+            }
+          }
+        }
+        
+        if (value != null && value.isNotEmpty) {
+          _keyCache[key] = value;
+          _fallbackCache[key] = value;
         }
       }
 

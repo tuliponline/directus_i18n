@@ -61,9 +61,10 @@ class HybridI18nService {
     for (final collection in collections) {
       try {
         // Build query for new app_content structure
+        // Use translations.* to get the full translations array
         final queryParams = <String, dynamic>{
           'access_token': accessToken,
-          'fields': 'key,translations.value(en-US),translations.value(th-TH),status',
+          'fields': 'key,translations.*,status',
           'filter[status][_eq]': 'published',
           'limit': '-1',
         };
@@ -108,23 +109,21 @@ class HybridI18nService {
           if (rawKey.isEmpty) continue;
           
           final String key = collection.applyPrefix(rawKey);
-          final translations = item['translations'] as Map<String, dynamic>?;
+          final translationsObj = item['translations'];
           
-          if (translations != null && translations.isNotEmpty) {
+          // Handle translations as array structure from Directus
+          // Structure: translations = [{languages_code: "en-US", value: "LoginNew"}, ...]
+          if (translationsObj is List) {
             // Store all language translations for this key
             final keyTranslations = <String, String>{};
             
-            // Extract translations from new structure: translations.value(en-US), translations.value(th-TH)
-            for (final entry in translations.entries) {
-              if (entry.key.startsWith('value(') && entry.value != null) {
-                // Extract locale from key: value(en-US) -> en-US
-                final localeMatch = RegExp(r'value\(([^)]+)\)').firstMatch(entry.key);
-                if (localeMatch != null) {
-                  final locale = localeMatch.group(1);
-                  final value = entry.value.toString();
-                  if (locale != null && value.isNotEmpty) {
-                    keyTranslations[locale] = value;
-                  }
+            for (final trans in translationsObj) {
+              if (trans is Map<String, dynamic>) {
+                final langCode = trans['languages_code']?.toString();
+                final value = trans['value']?.toString();
+                
+                if (langCode != null && value != null && value.isNotEmpty) {
+                  keyTranslations[langCode] = value;
                 }
               }
             }
@@ -132,6 +131,32 @@ class HybridI18nService {
             if (keyTranslations.isNotEmpty) {
               _dynamicCache[key] = keyTranslations;
               totalKeys++;
+            }
+          } else if (translationsObj is Map<String, dynamic>) {
+            // Fallback: Support old Map structure (translations.value(en-US))
+            final translations = translationsObj;
+            if (translations.isNotEmpty) {
+              final keyTranslations = <String, String>{};
+              
+              // Extract translations from old structure: translations.value(en-US), translations.value(th-TH)
+              for (final entry in translations.entries) {
+                if (entry.key.startsWith('value(') && entry.value != null) {
+                  // Extract locale from key: value(en-US) -> en-US
+                  final localeMatch = RegExp(r'value\(([^)]+)\)').firstMatch(entry.key);
+                  if (localeMatch != null) {
+                    final locale = localeMatch.group(1);
+                    final value = entry.value.toString();
+                    if (locale != null && value.isNotEmpty) {
+                      keyTranslations[locale] = value;
+                    }
+                  }
+                }
+              }
+              
+              if (keyTranslations.isNotEmpty) {
+                _dynamicCache[key] = keyTranslations;
+                totalKeys++;
+              }
             }
           }
         }

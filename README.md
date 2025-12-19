@@ -206,6 +206,8 @@ testWidgets('should display translated text', (tester) async {
 });
 ```
 
+📖 **ดูรายละเอียดเพิ่มเติม:** [Testing Guide](TESTING_GUIDE.md) - คู่มือการทดสอบใน Project
+
 ## 🔍 Debugging
 
 ```dart

@@ -1,6 +1,6 @@
 name: directus_i18n
 description: A reusable Flutter package for internationalization using Directus CMS as the content source. Supports dynamic content loading, type-safe keys, fallback support, and easy integration.
-version: 1.0.8
+version: 1.0.9
 # publish_to: none  # Uncomment this before publishing to pub.dev
 
 # Add these before publishing:

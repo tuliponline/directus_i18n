@@ -44,14 +44,14 @@ class DirectusI18nRepository {
       }
 
       // Map locale to Directus translation field format
-      // en-US -> value(en-US), th-TH -> value(th-TH)
+      // en-US -> en-US, th-TH -> th-TH
       final localeString = locale.toString().replaceAll('_', '-');
-      final translationField = 'translations.value($localeString)';
       
       // Build query parameters for new app_content structure
+      // Use translations.* to get the full translations array
       final queryParams = <String, dynamic>{
         'access_token': config.accessToken,
-        'fields': 'key,page.id,page.key,$translationField,status',
+        'fields': 'key,page.id,page.key,translations.*,status',
         'filter[status][_eq]': 'published',
         'limit': '-1',
       };
@@ -98,12 +98,39 @@ class DirectusI18nRepository {
         if (key.isEmpty) continue;
 
         // Get translation value from new structure
-        // translations.value(en-US) or translations.value(th-TH)
+        // Structure: translations = [{languages_code: "en-US", value: "LoginNew"}, ...]
         final translationsObj = itemMap['translations'];
         String? value;
         
-        if (translationsObj is Map<String, dynamic>) {
-          // New structure: translations.value(en-US)
+        if (translationsObj is List) {
+          // New structure: translations array with languages_code and value
+          for (final trans in translationsObj) {
+            if (trans is Map<String, dynamic>) {
+              final langCode = trans['languages_code']?.toString();
+              final transValue = trans['value']?.toString();
+              
+              // Try exact locale match first
+              if (langCode == localeString && transValue != null && transValue.isNotEmpty) {
+                value = transValue;
+                break;
+              }
+            }
+          }
+          
+          // Fallback: try to find any value if exact locale not found
+          if (value == null || value.isEmpty) {
+            for (final trans in translationsObj) {
+              if (trans is Map<String, dynamic>) {
+                final transValue = trans['value']?.toString();
+                if (transValue != null && transValue.isNotEmpty) {
+                  value = transValue;
+                  break;
+                }
+              }
+            }
+          }
+        } else if (translationsObj is Map<String, dynamic>) {
+          // Fallback: Support old Map structure (translations.value(en-US))
           value = translationsObj['value($localeString)']?.toString();
           
           // Fallback: try to find any value if exact locale not found

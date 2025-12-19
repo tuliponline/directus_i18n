@@ -535,9 +535,78 @@ class MyApp extends StatelessWidget {
 
 ---
 
+## 📋 ขั้นตอนที่ 8: การทดสอบ
+
+### 8.1 สร้าง Test File
+
+สร้างไฟล์ `test/directus_i18n_test.dart`:
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:directus_i18n/directus_i18n.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+void main() {
+  group('Directus I18n Tests', () {
+    setUpAll(() async {
+      await dotenv.load(fileName: 'env/.env');
+    });
+
+    setUp(() async {
+      await HybridI18nService.init(
+        baseUrl: dotenv.get('DIRECTUS_BASE_URL'),
+        accessToken: dotenv.get('DIRECTUS_ACCESS_TOKEN'),
+        collectionName: 'app_content',
+        collections: [
+          DirectusCollectionConfig(
+            name: 'app_content',
+            pagePrefix: 'login',
+          ),
+        ],
+        autoGenerateEnum: false,
+        enableDynamicFallback: true,
+      );
+      await Future.delayed(Duration(seconds: 2));
+    });
+
+    tearDown(() {
+      HybridI18nService.refresh();
+    });
+
+    test('should initialize successfully', () {
+      final status = HybridI18nService.getStatus();
+      expect(status['initialized'], isTrue);
+    });
+
+    test('should translate key', () {
+      final translation = HybridI18nService.translate(
+        'TITLE',
+        fallback: 'Login',
+      );
+      expect(translation, isNotEmpty);
+    });
+  });
+}
+```
+
+### 8.2 รัน Tests
+
+```bash
+# รัน tests ทั้งหมด
+flutter test
+
+# รัน test เฉพาะไฟล์
+flutter test test/directus_i18n_test.dart
+```
+
+📖 **ดูรายละเอียดเพิ่มเติม:** [Testing Guide](TESTING_GUIDE.md)
+
+---
+
 ## 📚 เอกสารเพิ่มเติม
 
 - [Project Setup Guide](PROJECT_SETUP_GUIDE.md) - คู่มือการ Setup และใช้งานใน Project
+- **[Testing Guide](TESTING_GUIDE.md)** - คู่มือการทดสอบใน Project ⭐
 - [New Structure Usage Guide](NEW_STRUCTURE_USAGE.md) - คู่มือการใช้งานโครงสร้างใหม่
 - [Enum with Page Prefix Guide](ENUM_WITH_PAGE_PREFIX.md) - คู่มือการใช้งาน Enum พร้อม Page Prefix
 

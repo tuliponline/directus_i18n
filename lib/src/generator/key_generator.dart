@@ -54,9 +54,10 @@ class DirectusI18nKeyGenerator {
       
       for (final collection in normalizedCollections) {
         // Build query for new app_content structure
+        // Use translations.* to get the full translations array
         final queryParams = <String, dynamic>{
           'access_token': accessToken,
-          'fields': 'key,translations.value(en-US),translations.value(th-TH),status',
+          'fields': 'key,translations.*,status',
           'filter[status][_eq]': 'published',
           'limit': '-1',
         };
@@ -134,28 +135,73 @@ class DirectusI18nKeyGenerator {
       for (var item in allItems) {
         final key = item['key'] as String; // Original key for translation lookup
         final enumKey = item['enumKey'] as String? ?? key; // Enum name (with page prefix if applicable)
-        final translations = item['translations'] as Map<String, dynamic>?;
+        final translationsObj = item['translations'];
+        String? value;
         
-        if (translations != null && translations.isNotEmpty) {
+        if (translationsObj is List) {
+          // New structure: translations array with languages_code and value
           // Try to get en-US first, then th-TH, then any available
-          String? value = translations['value(en-US)']?.toString();
-          if (value == null || value.isEmpty) {
-            value = translations['value(th-TH)']?.toString();
-          }
-          if (value == null || value.isEmpty) {
-            for (final entry in translations.entries) {
-              if (entry.key.startsWith('value(') && entry.value != null) {
-                value = entry.value.toString();
+          for (final trans in translationsObj) {
+            if (trans is Map<String, dynamic>) {
+              final langCode = trans['languages_code']?.toString();
+              final transValue = trans['value']?.toString();
+              
+              if (langCode == 'en-US' && transValue != null && transValue.isNotEmpty) {
+                value = transValue;
                 break;
               }
             }
           }
           
-          if (value != null && value.isNotEmpty) {
-            final sanitizedValue = _sanitizeString(value);
-            final sanitizedEnumKey = _sanitizeEnumName(enumKey);
-            buffer.writeln("  $sanitizedEnumKey('$key', defaultFallbackKey: '$sanitizedValue'),");
+          if (value == null || value.isEmpty) {
+            for (final trans in translationsObj) {
+              if (trans is Map<String, dynamic>) {
+                final langCode = trans['languages_code']?.toString();
+                final transValue = trans['value']?.toString();
+                
+                if (langCode == 'th-TH' && transValue != null && transValue.isNotEmpty) {
+                  value = transValue;
+                  break;
+                }
+              }
+            }
           }
+          
+          if (value == null || value.isEmpty) {
+            for (final trans in translationsObj) {
+              if (trans is Map<String, dynamic>) {
+                final transValue = trans['value']?.toString();
+                if (transValue != null && transValue.isNotEmpty) {
+                  value = transValue;
+                  break;
+                }
+              }
+            }
+          }
+        } else if (translationsObj is Map<String, dynamic>) {
+          // Fallback: Support old Map structure (translations.value(en-US))
+          final translations = translationsObj;
+          if (translations.isNotEmpty) {
+            // Try to get en-US first, then th-TH, then any available
+            value = translations['value(en-US)']?.toString();
+            if (value == null || value.isEmpty) {
+              value = translations['value(th-TH)']?.toString();
+            }
+            if (value == null || value.isEmpty) {
+              for (final entry in translations.entries) {
+                if (entry.key.startsWith('value(') && entry.value != null) {
+                  value = entry.value.toString();
+                  break;
+                }
+              }
+            }
+          }
+        }
+        
+        if (value != null && value.isNotEmpty) {
+          final sanitizedValue = _sanitizeString(value);
+          final sanitizedEnumKey = _sanitizeEnumName(enumKey);
+          buffer.writeln("  $sanitizedEnumKey('$key', defaultFallbackKey: '$sanitizedValue'),");
         }
       }
 
