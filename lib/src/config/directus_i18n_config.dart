@@ -8,8 +8,13 @@ class DirectusI18nConfig {
   /// Access token for Directus API
   final String accessToken;
 
-  /// Collection name in Directus (default: 'contents')
+  /// Collection name in Directus (default: 'app_content')
+  /// For new structure, this should be 'app_content'
   final String collectionName;
+  
+  /// Page prefix for filtering app_content by page relation
+  /// This corresponds to the 'key' field in app_page collection
+  final String? pagePrefix;
 
   /// Whether the app is in production mode
   /// In non-production, draft values will be used if available
@@ -35,7 +40,8 @@ class DirectusI18nConfig {
   const DirectusI18nConfig({
     required this.baseUrl,
     required this.accessToken,
-    this.collectionName = 'contents',
+    this.collectionName = 'app_content',
+    this.pagePrefix,
     this.isProduction = true,
     this.cacheEnabled = true,
     this.onError,
@@ -48,6 +54,7 @@ class DirectusI18nConfig {
     String? baseUrl,
     String? accessToken,
     String? collectionName,
+    String? pagePrefix,
     bool? isProduction,
     bool? cacheEnabled,
     void Function(Object error, StackTrace? stackTrace)? onError,
@@ -59,6 +66,7 @@ class DirectusI18nConfig {
       baseUrl: baseUrl ?? this.baseUrl,
       accessToken: accessToken ?? this.accessToken,
       collectionName: collectionName ?? this.collectionName,
+      pagePrefix: pagePrefix ?? this.pagePrefix,
       isProduction: isProduction ?? this.isProduction,
       cacheEnabled: cacheEnabled ?? this.cacheEnabled,
       onError: onError ?? this.onError,
@@ -74,10 +82,14 @@ class DirectusI18nConfig {
 class DirectusCollectionConfig {
   final String name;
   final String prefix;
+  /// Page prefix for filtering app_content by page relation
+  /// This corresponds to the 'key' field in app_page collection
+  final String? pagePrefix;
 
   const DirectusCollectionConfig({
     required this.name,
     this.prefix = '',
+    this.pagePrefix,
   });
 
   /// Apply prefix to an incoming key (no-op if prefix is empty).

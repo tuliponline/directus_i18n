@@ -7,8 +7,10 @@ class DirectusI18nKeyGenerator {
   /// [baseUrl] - Directus base URL
   /// [accessToken] - Directus access token
   /// [outputPath] - Output file path for generated enum
-  /// [collectionName] - Directus collection name (default: 'app_contents')
+  /// [collectionName] - Directus collection name (default: 'app_content')
   /// [enumName] - Name of the generated enum (default: 'I18nKeys')
+  /// [pagePrefix] - Optional page prefix to filter and include in enum names
+  /// [collections] - Optional list of collections with page prefixes
   /// 
   /// Example:
   /// ```dart
@@ -16,14 +18,19 @@ class DirectusI18nKeyGenerator {
   ///   baseUrl: 'https://your-directus.com',
   ///   accessToken: 'your-token',
   ///   outputPath: 'lib/i18n_keys.dart',
+  ///   pagePrefix: 'login', // Will generate LOGIN_TITLE instead of TITLE
   /// );
   /// ```
+  /// 
+  /// For new Directus structure, use collectionName: 'app_content'
   static Future<void> generate({
     required String baseUrl,
     required String accessToken,
     required String outputPath,
-    String collectionName = 'contents',
+    String collectionName = 'app_content',
     String enumName = 'I18nKeys',
+    String? pagePrefix,
+    List<DirectusCollectionConfig>? collections,
   }) async {
     final logger = Logger();
 
@@ -31,17 +38,81 @@ class DirectusI18nKeyGenerator {
       // Create Dio client
       final dio = Dio(BaseOptions(baseUrl: baseUrl));
 
+      // Normalize collections
+      final normalizedCollections = collections ?? [
+        if (pagePrefix != null)
+          DirectusCollectionConfig(name: collectionName, pagePrefix: pagePrefix)
+        else
+          DirectusCollectionConfig(name: collectionName)
+      ];
+
       // Fetch data from Directus
+      // Supports new app_content structure
       logger.i('Fetching translations from $baseUrl...');
-      final response = await dio.get(
-        '/items/$collectionName',
-        queryParameters: {
+      
+      final allItems = <Map<String, dynamic>>[];
+      
+      for (final collection in normalizedCollections) {
+        // Build query for new app_content structure
+        final queryParams = <String, dynamic>{
           'access_token': accessToken,
-          'fields': 'key,translations.message',
-          'deep[translations][_filter][message][_nnull]': 'true',
+          'fields': 'key,translations.value(en-US),translations.value(th-TH),status',
+          'filter[status][_eq]': 'published',
           'limit': '-1',
-        },
-      );
+        };
+
+        // Filter by page prefix if provided
+        if (collection.pagePrefix != null && collection.pagePrefix!.isNotEmpty) {
+          // Get page ID from app_page collection
+          final pageResponse = await dio.get(
+            '/items/app_page',
+            queryParameters: {
+              'access_token': accessToken,
+              'fields': 'id,key',
+              'filter[key][_eq]': collection.pagePrefix,
+              'filter[status][_eq]': 'published',
+              'limit': '1',
+            },
+          );
+
+          if (pageResponse.data['data'] != null && 
+              (pageResponse.data['data'] as List).isNotEmpty) {
+            final pageId = pageResponse.data['data'][0]['id'];
+            queryParams['filter[page][_eq]'] = pageId;
+          } else {
+            logger.w('Page prefix "${collection.pagePrefix}" not found in app_page');
+            continue;
+          }
+        }
+        
+        final response = await dio.get(
+          '/items/${collection.name}',
+          queryParameters: queryParams,
+        );
+        
+        final data = (response.data['data'] ?? []) as List;
+        for (final item in data) {
+          final key = item['key']?.toString() ?? '';
+          if (key.isEmpty) continue;
+          
+          // Build enum key with page prefix
+          String enumKey;
+          if (collection.pagePrefix != null && collection.pagePrefix!.isNotEmpty) {
+            // Convert page prefix to uppercase and combine with key
+            final pagePrefixUpper = collection.pagePrefix!.toUpperCase();
+            enumKey = '${pagePrefixUpper}_$key';
+          } else {
+            // Use prefix if provided, otherwise use key as-is
+            enumKey = collection.applyPrefix(key);
+          }
+          
+          allItems.add({
+            'key': collection.applyPrefix(key), // Keep original key for translation lookup
+            'enumKey': enumKey, // Enum name with page prefix
+            'translations': item['translations'],
+          });
+        }
+      }
 
       // Generate enum content
       final buffer = StringBuffer();
@@ -57,19 +128,33 @@ class DirectusI18nKeyGenerator {
       buffer.writeln('enum $enumName implements I18nKey {');
       buffer.writeln("  empty('0', defaultFallbackKey: ''),");
 
-      // Convert response and generate enum cases
-      final data = response.data['data'] as List;
-      logger.i('Found ${data.length} translation keys');
+      // Generate enum cases
+      logger.i('Found ${allItems.length} translation keys');
 
-      for (var item in data) {
-        final id = item['key'];
-        final translations = item['translations'] as List?;
+      for (var item in allItems) {
+        final key = item['key'] as String; // Original key for translation lookup
+        final enumKey = item['enumKey'] as String? ?? key; // Enum name (with page prefix if applicable)
+        final translations = item['translations'] as Map<String, dynamic>?;
         
         if (translations != null && translations.isNotEmpty) {
-          final value = translations[0]['message'];
-          if (value != null) {
+          // Try to get en-US first, then th-TH, then any available
+          String? value = translations['value(en-US)']?.toString();
+          if (value == null || value.isEmpty) {
+            value = translations['value(th-TH)']?.toString();
+          }
+          if (value == null || value.isEmpty) {
+            for (final entry in translations.entries) {
+              if (entry.key.startsWith('value(') && entry.value != null) {
+                value = entry.value.toString();
+                break;
+              }
+            }
+          }
+          
+          if (value != null && value.isNotEmpty) {
             final sanitizedValue = _sanitizeString(value);
-            buffer.writeln("  key$id('$id', defaultFallbackKey: '$sanitizedValue'),");
+            final sanitizedEnumKey = _sanitizeEnumName(enumKey);
+            buffer.writeln("  $sanitizedEnumKey('$key', defaultFallbackKey: '$sanitizedValue'),");
           }
         }
       }
@@ -107,7 +192,7 @@ class DirectusI18nKeyGenerator {
       await outputFile.writeAsString(buffer.toString());
       
       logger.i('✅ Successfully generated $enumName enum at $outputPath');
-      logger.i('Total keys: ${data.length}');
+      logger.i('Total keys: ${allItems.length}');
     } catch (e, stackTrace) {
       logger.e('❌ Failed to generate I18n keys', error: e, stackTrace: stackTrace);
       rethrow;
@@ -123,6 +208,38 @@ class DirectusI18nKeyGenerator {
         .replaceAll("'", "\\'")
         .replaceAll('\\"', '"')
         .replaceAll('\$', '\\\$');
+  }
+  
+  /// Sanitize enum name for Dart code generation
+  /// Converts to valid Dart identifier: uppercase, replace dots/underscores with underscores
+  static String _sanitizeEnumName(String input) {
+    // Convert to uppercase and replace dots/dashes with underscores
+    String sanitized = input
+        .toUpperCase()
+        .replaceAll('.', '_')
+        .replaceAll('-', '_')
+        .replaceAll(' ', '_');
+    
+    // Remove leading numbers if any (Dart identifiers can't start with numbers)
+    while (sanitized.isNotEmpty && sanitized[0].contains(RegExp(r'[0-9]'))) {
+      sanitized = sanitized.substring(1);
+    }
+    
+    // Ensure it starts with a letter or underscore
+    if (sanitized.isEmpty || !sanitized[0].contains(RegExp(r'[A-Z_]'))) {
+      sanitized = 'KEY_$sanitized';
+    }
+    
+    // Remove any invalid characters (keep only letters, numbers, underscores)
+    sanitized = sanitized.replaceAll(RegExp(r'[^A-Z0-9_]'), '_');
+    
+    // Remove consecutive underscores
+    sanitized = sanitized.replaceAll(RegExp(r'_+'), '_');
+    
+    // Remove trailing underscores
+    sanitized = sanitized.replaceAll(RegExp(r'_+$'), '');
+    
+    return sanitized.isEmpty ? 'KEY' : sanitized;
   }
 }
 

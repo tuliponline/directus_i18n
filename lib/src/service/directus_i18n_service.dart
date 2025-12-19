@@ -24,13 +24,15 @@ class DirectusI18nService {
   /// DirectusI18nService.init(
   ///   baseUrl: 'https://your-directus.com',
   ///   accessToken: 'your-token',
-  ///   collectionName: 'app_contents',
+  ///   collectionName: 'app_content',
+  ///   pagePrefix: 'login', // Optional: filter by page prefix
   /// );
   /// ```
   static void init({
     required String baseUrl,
     required String accessToken,
-    String collectionName = 'app_contents',
+    String collectionName = 'app_content',
+    String? pagePrefix,
     bool isProduction = true,
     bool cacheEnabled = true,
     void Function(Object error, StackTrace? stackTrace)? onError,
@@ -42,6 +44,7 @@ class DirectusI18nService {
       baseUrl: baseUrl,
       accessToken: accessToken,
       collectionName: collectionName,
+      pagePrefix: pagePrefix,
       isProduction: isProduction,
       cacheEnabled: cacheEnabled,
       onError: onError,

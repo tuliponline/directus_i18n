@@ -52,7 +52,13 @@ void main() async {
   await HybridI18nService.init(
     baseUrl: 'https://your-directus.com',
     accessToken: 'your-token',
-    collectionName: 'contents',
+    collectionName: 'app_content', // สำหรับโครงสร้างใหม่
+    collections: [
+      DirectusCollectionConfig(
+        name: 'app_content',
+        pagePrefix: 'login', // Optional: กรองตาม page prefix
+      ),
+    ],
     autoGenerateEnum: true,
   );
   
@@ -67,22 +73,49 @@ Text(HybridI18nService.translate('welcome_user', params: {'name': 'John'}))
 ### 🗂️ Multiple Collections (optional)
 รองรับหลาย collection ใน Directus ภายใต้การ init ครั้งเดียว (เช่นแยก `contents`, `homepage`) พร้อม prefix กันชน key
 
+**โครงสร้างเดิม:**
 ```dart
 await HybridI18nService.init(
   baseUrl: dotenv.get(MonsterEnv.directus),
   accessToken: dotenv.get(MonsterEnv.directusToken),
-  // fallback ใช้ collectionName เดิม ถ้าไม่ต้องการหลาย collection
   collections: const [
     DirectusCollectionConfig(name: 'contents', prefix: ''),
     DirectusCollectionConfig(name: 'homepage', prefix: 'homepage.'), // key = homepage.hero_title
   ],
-  autoGenerateEnum: true, // จะ merge keys ทั้งหมดก่อน generate enum
+  autoGenerateEnum: true,
 );
 ```
+
+**โครงสร้างใหม่ (app_page + app_content):**
+```dart
+await HybridI18nService.init(
+  baseUrl: dotenv.get(MonsterEnv.directus),
+  accessToken: dotenv.get(MonsterEnv.directusToken),
+  collectionName: 'app_content',
+  collections: const [
+    DirectusCollectionConfig(
+      name: 'app_content',
+      pagePrefix: 'login', // กรองตาม page prefix
+      prefix: 'LOGIN.',
+    ),
+    DirectusCollectionConfig(
+      name: 'app_content',
+      pagePrefix: 'home',
+      prefix: 'HOME.',
+    ),
+  ],
+  autoGenerateEnum: true,
+);
+```
+
+📖 **ดูรายละเอียดเพิ่มเติม:** [New Structure Usage Guide](NEW_STRUCTURE_USAGE.md)
 
 ## 📚 Documentation
 
 - [Quick Start Guide](QUICK_START.md) - เริ่มต้นใช้งานใน 5 นาที
+- **[Project Setup Guide](PROJECT_SETUP_GUIDE.md)** - คู่มือการ Setup และใช้งานใน Project ของคุณ ⭐⭐⭐
+- **[New Structure Usage Guide](NEW_STRUCTURE_USAGE.md)** - คู่มือการใช้งานโครงสร้าง Directus ใหม่ (app_page + app_content) ⭐
+- **[Enum with Page Prefix Guide](ENUM_WITH_PAGE_PREFIX.md)** - คู่มือการใช้งาน Enum พร้อม Page Prefix (LOGIN_TITLE) ⭐
 - [Integration Guide](INTEGRATION_GUIDE.md) - การนำไปใช้กับ project อื่น
 - [Runtime Enum Guide](RUNTIME_ENUM_GUIDE.md) - การใช้ enum generation
 - [Dynamic I18n Guide](DYNAMIC_I18N_GUIDE.md) - การใช้ dynamic i18n

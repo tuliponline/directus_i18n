@@ -7,10 +7,12 @@ class CombinedI18nService {
   static bool _isInitialized = false;
 
   /// Initialize both I18n and Error Code services
+  /// 
+  /// For new Directus structure, use i18nCollectionName: 'app_content'
   static Future<void> init({
     required String baseUrl,
     required String accessToken,
-    String i18nCollectionName = 'contents',
+    String i18nCollectionName = 'app_content',
     List<DirectusCollectionConfig>? i18nCollections,
     String errorCollectionName = 'error_codes',
     String i18nEnumName = 'AppI18nKeys',

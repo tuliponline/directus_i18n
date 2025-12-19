@@ -8,10 +8,12 @@ class AutoEnumService {
   static bool _isGenerating = false;
   
   /// Initialize auto enum service
+  /// 
+  /// For new Directus structure, use collectionName: 'app_content'
   static Future<void> init({
     required String baseUrl,
     required String accessToken,
-    String collectionName = 'contents',
+    String collectionName = 'app_content',
     List<DirectusCollectionConfig>? collections,
     String enumName = 'AutoI18nKeys',
     bool autoGenerate = true,
@@ -39,10 +41,12 @@ class AutoEnumService {
   }
   
   /// Generate enum if needed (check for updates)
+  /// 
+  /// For new Directus structure, use collectionName: 'app_content'
   static Future<void> generateEnumIfNeeded({
     required String baseUrl,
     required String accessToken,
-    String collectionName = 'contents',
+    String collectionName = 'app_content',
     List<DirectusCollectionConfig>? collections,
     String enumName = 'AutoI18nKeys',
   }) async {
@@ -103,17 +107,46 @@ class AutoEnumService {
 
       for (final collection in collections) {
         try {
+          // Build query for new app_content structure
+          final queryParams = <String, dynamic>{
+            'access_token': accessToken,
+            'fields': 'key,date_updated,status',
+            'filter[status][_eq]': 'published',
+            'sort': '-date_updated',
+            'limit': '1',
+          };
+
+          // Filter by page prefix if provided
+          if (collection.pagePrefix != null && collection.pagePrefix!.isNotEmpty) {
+            // Get page ID from app_page collection
+            final pageResponse = await dio.get(
+              '/items/app_page',
+              queryParameters: {
+                'access_token': accessToken,
+                'fields': 'id,key',
+                'filter[key][_eq]': collection.pagePrefix,
+                'filter[status][_eq]': 'published',
+                'limit': '1',
+              },
+            );
+
+            if (pageResponse.data['data'] != null && 
+                (pageResponse.data['data'] as List).isNotEmpty) {
+              final pageId = pageResponse.data['data'][0]['id'];
+              queryParams['filter[page][_eq]'] = pageId;
+            } else {
+              _logger.w('Page prefix "${collection.pagePrefix}" not found in app_page');
+              continue;
+            }
+          }
+
           final response = await dio.get(
             '/items/${collection.name}',
-            queryParameters: {
-              'access_token': accessToken,
-              'fields': 'key,date_updated',
-              'sort': '-date_updated',
-              'limit': '1',
-            },
+            queryParameters: queryParams,
           );
 
-          if (response.data['data'].isNotEmpty) {
+          if (response.data['data'] != null && 
+              (response.data['data'] as List).isNotEmpty) {
             final lastUpdate = DateTime.parse(response.data['data'][0]['date_updated']);
             if (latestUpdate == null || lastUpdate.isAfter(latestUpdate)) {
               latestUpdate = lastUpdate;
@@ -150,10 +183,12 @@ class AutoEnumService {
   }
   
   /// Force regenerate enum
+  /// 
+  /// For new Directus structure, use collectionName: 'app_content'
   static Future<void> forceRegenerate({
     required String baseUrl,
     required String accessToken,
-    String collectionName = 'contents',
+    String collectionName = 'app_content',
     List<DirectusCollectionConfig>? collections,
     String enumName = 'AutoI18nKeys',
   }) async {

@@ -23,7 +23,12 @@ class DirectusI18nRepository {
   /// 
   /// First tries to get from platform channel (if configured),
   /// then falls back to HTTP request to Directus API.
-  Future<Map<String, String>> load(Locale locale) async {
+  /// 
+  /// Supports new Directus structure:
+  /// - app_content collection with page relation
+  /// - translations.value(en-US) and translations.value(th-TH)
+  /// - status filtering (only published)
+  Future<Map<String, String>> load(Locale locale, {String? pagePrefix}) async {
     _lastUpdatedLocale = locale;
 
     try {
@@ -38,28 +43,80 @@ class DirectusI18nRepository {
         }
       }
 
+      // Map locale to Directus translation field format
+      // en-US -> value(en-US), th-TH -> value(th-TH)
+      final localeString = locale.toString().replaceAll('_', '-');
+      final translationField = 'translations.value($localeString)';
+      
+      // Build query parameters for new app_content structure
+      final queryParams = <String, dynamic>{
+        'access_token': config.accessToken,
+        'fields': 'key,page.id,page.key,$translationField,status',
+        'filter[status][_eq]': 'published',
+        'limit': '-1',
+      };
+
+      // Use pagePrefix from parameter or config
+      final effectivePagePrefix = pagePrefix ?? config.pagePrefix;
+
+      // Filter by page prefix if provided
+      if (effectivePagePrefix != null && effectivePagePrefix.isNotEmpty) {
+        // First, get the page ID from app_page collection
+        final pageResponse = await _httpClient.get(
+          '/items/app_page',
+          queryParameters: {
+            'access_token': config.accessToken,
+            'fields': 'id,key',
+            'filter[key][_eq]': effectivePagePrefix,
+            'filter[status][_eq]': 'published',
+            'limit': '1',
+          },
+        );
+
+        if (pageResponse.data['data'] != null && 
+            (pageResponse.data['data'] as List).isNotEmpty) {
+          final pageId = pageResponse.data['data'][0]['id'];
+          queryParams['filter[page][_eq]'] = pageId;
+        } else {
+          _logger.w('Page prefix "$effectivePagePrefix" not found in app_page');
+          return {};
+        }
+      }
+
       // Fallback to HTTP request
       final response = await _httpClient.get(
         '/items/${config.collectionName}',
-        queryParameters: {
-          'access_token': config.accessToken,
-          'fields': 'key,translations.message',
-          'deep[translations][_filter][language_code][_starts_with]':
-              locale.languageCode,
-          'deep[translations][_filter][message][_nnull]': 'true',
-          'limit': '-1',
-        },
+        queryParameters: queryParams,
       );
 
       final translations = <String, String>{};
 
-      for (final item in response.data['data']) {
-        final String key = item['key'].toString();
-        if (item['translations'].length > 0) {
-          final String? value = item['translations'][0]['message'];
-          if (value != null) {
-            translations[key] = value;
+      for (final item in response.data['data'] ?? []) {
+        final String key = item['key']?.toString() ?? '';
+        if (key.isEmpty) continue;
+
+        // Get translation value from new structure
+        // translations.value(en-US) or translations.value(th-TH)
+        final translationsObj = item['translations'];
+        String? value;
+        
+        if (translationsObj is Map<String, dynamic>) {
+          // New structure: translations.value(en-US)
+          value = translationsObj['value($localeString)']?.toString();
+          
+          // Fallback: try to find any value if exact locale not found
+          if (value == null || value.isEmpty) {
+            for (final entry in translationsObj.entries) {
+              if (entry.key.startsWith('value(') && entry.value != null) {
+                value = entry.value.toString();
+                break;
+              }
+            }
           }
+        }
+
+        if (value != null && value.isNotEmpty) {
+          translations[key] = value;
         }
       }
 

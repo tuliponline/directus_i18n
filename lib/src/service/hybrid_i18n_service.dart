@@ -10,10 +10,12 @@ class HybridI18nService {
   static List<DirectusCollectionConfig> _collections = const [];
   
   /// Initialize hybrid i18n service
+  /// 
+  /// For new Directus structure, use collectionName: 'app_content'
   static Future<void> init({
     required String baseUrl,
     required String accessToken,
-    String collectionName = 'contents',
+    String collectionName = 'app_content',
     List<DirectusCollectionConfig>? collections,
     String enumName = 'HybridI18nKeys',
     bool autoGenerateEnum = true,
@@ -46,6 +48,7 @@ class HybridI18nService {
   }
   
   /// Load dynamic keys for fallback
+  /// Supports new Directus structure with app_content and translations.value(en-US)
   static Future<void> _loadDynamicKeys(
     String baseUrl,
     String accessToken,
@@ -57,14 +60,41 @@ class HybridI18nService {
 
     for (final collection in collections) {
       try {
+        // Build query for new app_content structure
+        final queryParams = <String, dynamic>{
+          'access_token': accessToken,
+          'fields': 'key,translations.value(en-US),translations.value(th-TH),status',
+          'filter[status][_eq]': 'published',
+          'limit': '-1',
+        };
+
+        // Filter by page prefix if provided
+        if (collection.pagePrefix != null && collection.pagePrefix!.isNotEmpty) {
+          // Get page ID from app_page collection
+          final pageResponse = await dio.get(
+            '/items/app_page',
+            queryParameters: {
+              'access_token': accessToken,
+              'fields': 'id,key',
+              'filter[key][_eq]': collection.pagePrefix,
+              'filter[status][_eq]': 'published',
+              'limit': '1',
+            },
+          );
+
+          if (pageResponse.data['data'] != null && 
+              (pageResponse.data['data'] as List).isNotEmpty) {
+            final pageId = pageResponse.data['data'][0]['id'];
+            queryParams['filter[page][_eq]'] = pageId;
+          } else {
+            _logger.w('Page prefix "${collection.pagePrefix}" not found in app_page');
+            continue;
+          }
+        }
+
         final response = await dio.get(
           '/items/${collection.name}',
-          queryParameters: {
-            'access_token': accessToken,
-            'fields': 'key,translations.language_code,translations.message',
-            'deep[translations][_filter][message][_nnull]': 'true',
-            'limit': '-1',
-          },
+          queryParameters: queryParams,
         );
         
         final data = response.data['data'] as List?;
@@ -74,31 +104,28 @@ class HybridI18nService {
         }
         
         for (final item in data) {
-          final String rawKey = item['key'].toString();
+          final String rawKey = item['key']?.toString() ?? '';
+          if (rawKey.isEmpty) continue;
+          
           final String key = collection.applyPrefix(rawKey);
-          final translations = item['translations'] as List?;
+          final translations = item['translations'] as Map<String, dynamic>?;
           
           if (translations != null && translations.isNotEmpty) {
             // Store all language translations for this key
             final keyTranslations = <String, String>{};
             
-            for (final translation in translations) {
-              // Get language code - handle different possible structures
-              String? languageCode;
-              final langCodeData = translation['language_code'];
-              
-              if (langCodeData is Map<String, dynamic>) {
-                // If language_code is a relationship object, get the code
-                languageCode = langCodeData['code']?.toString();
-              } else if (langCodeData is String) {
-                // If language_code is directly a string
-                languageCode = langCodeData;
-              }
-              
-              final String? message = translation['message']?.toString();
-              
-              if (languageCode != null && message != null && message.isNotEmpty) {
-                keyTranslations[languageCode] = message;
+            // Extract translations from new structure: translations.value(en-US), translations.value(th-TH)
+            for (final entry in translations.entries) {
+              if (entry.key.startsWith('value(') && entry.value != null) {
+                // Extract locale from key: value(en-US) -> en-US
+                final localeMatch = RegExp(r'value\(([^)]+)\)').firstMatch(entry.key);
+                if (localeMatch != null) {
+                  final locale = localeMatch.group(1);
+                  final value = entry.value.toString();
+                  if (locale != null && value.isNotEmpty) {
+                    keyTranslations[locale] = value;
+                  }
+                }
               }
             }
             

@@ -11,14 +11,17 @@ class DynamicI18nService {
   static Future<void> init({
     required String baseUrl,
     required String accessToken,
-    String collectionName = 'contents',
+    String collectionName = 'app_content',
+    String? pagePrefix,
+    Locale? locale,
     bool cacheEnabled = true,
   }) async {
     if (_isInitialized) return;
 
     try {
       // Load all available keys from Directus
-      await _loadAllKeys(baseUrl, accessToken, collectionName);
+      await _loadAllKeys(baseUrl, accessToken, collectionName, 
+        pagePrefix: pagePrefix, locale: locale);
       _isInitialized = true;
       _logger.i('DynamicI18nService initialized successfully');
     } catch (e) {
@@ -28,10 +31,12 @@ class DynamicI18nService {
   }
 
   /// Load all available keys from Directus
+  /// Supports new app_content structure with translations.value(en-US) and translations.value(th-TH)
   static Future<void> _loadAllKeys(
     String baseUrl,
     String accessToken,
     String collectionName,
+    {String? pagePrefix, Locale? locale}
   ) async {
     final dio = Dio(BaseOptions(
       baseUrl: baseUrl,
@@ -40,27 +45,82 @@ class DynamicI18nService {
     ));
 
     try {
+      // Determine locale for translation field
+      final targetLocale = locale ?? const Locale('en', 'US');
+      final localeString = targetLocale.toString().replaceAll('_', '-');
+      final translationField = 'translations.value($localeString)';
+      
+      // Build query for new app_content structure
+      final queryParams = <String, dynamic>{
+        'access_token': accessToken,
+        'fields': 'key,$translationField,translations.value(en-US),translations.value(th-TH),status',
+        'filter[status][_eq]': 'published',
+        'limit': '-1',
+      };
+
+      // Filter by page prefix if provided
+      if (pagePrefix != null && pagePrefix.isNotEmpty) {
+        // Get page ID from app_page collection
+        final pageResponse = await dio.get(
+          '/items/app_page',
+          queryParameters: {
+            'access_token': accessToken,
+            'fields': 'id,key',
+            'filter[key][_eq]': pagePrefix,
+            'filter[status][_eq]': 'published',
+            'limit': '1',
+          },
+        );
+
+        if (pageResponse.data['data'] != null && 
+            (pageResponse.data['data'] as List).isNotEmpty) {
+          final pageId = pageResponse.data['data'][0]['id'];
+          queryParams['filter[page][_eq]'] = pageId;
+        } else {
+          _logger.w('Page prefix "$pagePrefix" not found in app_page');
+          return;
+        }
+      }
+
       final response = await dio.get(
         '/items/$collectionName',
-        queryParameters: {
-          'access_token': accessToken,
-          'fields': 'key,translations.message',
-          'deep[translations][_filter][message][_nnull]': 'true',
-          'limit': '-1',
-        },
+        queryParameters: queryParams,
       );
 
       _keyCache.clear();
       _fallbackCache.clear();
 
-      for (final item in response.data['data']) {
-        final String key = item['key'].toString();
-        final translations = item['translations'] as List?;
+      for (final item in response.data['data'] ?? []) {
+        final String key = item['key']?.toString() ?? '';
+        if (key.isEmpty) continue;
+        
+        final translations = item['translations'] as Map<String, dynamic>?;
         
         if (translations != null && translations.isNotEmpty) {
-          final String? value = translations[0]['message'];
+          // Try to get translation for target locale first
+          String? value = translations['value($localeString)']?.toString();
           
-          if (value != null) {
+          // Fallback to en-US if target locale not found
+          if (value == null || value.isEmpty) {
+            value = translations['value(en-US)']?.toString();
+          }
+          
+          // Fallback to th-TH if still not found
+          if (value == null || value.isEmpty) {
+            value = translations['value(th-TH)']?.toString();
+          }
+          
+          // Fallback to any available translation
+          if (value == null || value.isEmpty) {
+            for (final entry in translations.entries) {
+              if (entry.key.startsWith('value(') && entry.value != null) {
+                value = entry.value.toString();
+                break;
+              }
+            }
+          }
+          
+          if (value != null && value.isNotEmpty) {
             _keyCache[key] = value;
             _fallbackCache[key] = value;
           }
@@ -75,7 +135,7 @@ class DynamicI18nService {
   }
 
   /// Refresh keys from Directus (useful for hot reload)
-  static Future<void> refreshKeys() async {
+  static Future<void> refreshKeys({Locale? locale}) async {
     if (!_isInitialized) return;
     
     final config = DirectusI18nService.config;
@@ -83,6 +143,8 @@ class DynamicI18nService {
       config.baseUrl,
       config.accessToken,
       config.collectionName,
+      pagePrefix: config.pagePrefix,
+      locale: locale,
     );
   }
 
